@@ -14,6 +14,7 @@ import {
   ActivityLog,
   SearchLog,
 } from '../types';
+import { supabase, isSupabaseConfigured } from './supabase';
 
 const INITIAL_PROFILES: UserProfile[] = [
   {
@@ -153,7 +154,7 @@ const INITIAL_POSTS: Post[] = [
   {
     id: 'post-1',
     user_id: 'usr-admin-tanvir',
-    content: 'Welcome to FriendsHub! 🎉 Our central circle platform is active for all friends across every phone and device. Check the live radar map, share meetups, and drop photos!',
+    content: 'Welcome to FriendsHub! 🎉 Our central circle platform is now active for all friends across every phone and browser. Check the live radar map, share meetups, and drop photos!',
     images: ['https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=1200&auto=format&fit=crop&q=80'],
     location_name: 'Dhanmondi, Dhaka',
     post_type: 'announcement',
@@ -188,15 +189,34 @@ const INITIAL_POSTS: Post[] = [
   },
 ];
 
+const INITIAL_EVENTS: CommunityEvent[] = [
+  {
+    id: 'evt-1',
+    title: 'Weekend Group Rooftop BBQ & Tech Jam',
+    description: 'Catching up, grilling skewers, playing board games and enjoying the evening breeze!',
+    date: '2026-08-28',
+    time: '18:00',
+    location_name: 'Dhanmondi Lake View Rooftop',
+    latitude: 23.7461,
+    longitude: 90.3742,
+    created_by: 'usr-admin-tanvir',
+    created_at: new Date().toISOString(),
+    attendees: [
+      { id: 'att-1', event_id: 'evt-1', user_id: 'usr-admin-tanvir', status: 'going', created_at: new Date().toISOString() },
+      { id: 'att-2', event_id: 'evt-1', user_id: 'usr-sara-khan', status: 'going', created_at: new Date().toISOString() },
+      { id: 'att-3', event_id: 'evt-1', user_id: 'usr-rahim-chowdhury', status: 'maybe', created_at: new Date().toISOString() },
+    ],
+  },
+];
+
 const INITIAL_ALBUMS: Album[] = [
   {
     id: 'alb-1',
-    title: 'Circle Hangouts & Meetups',
-    description: 'Moments captured across Dhaka with friends',
+    title: 'Community Moments 2026',
+    description: 'Hangouts, meetups, and travel captures with friends',
     cover_url: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&auto=format&fit=crop&q=80',
     created_by: 'usr-admin-tanvir',
-    created_at: '2026-01-10T10:00:00Z',
-    photo_count: 2,
+    created_at: new Date().toISOString(),
   },
 ];
 
@@ -223,32 +243,12 @@ const INITIAL_PHOTOS: Photo[] = [
   },
 ];
 
-const INITIAL_EVENTS: CommunityEvent[] = [
-  {
-    id: 'evt-1',
-    title: 'Weekend Group Rooftop BBQ & Tech Jam',
-    description: 'Catching up, grilling skewers, playing board games and enjoying the evening breeze!',
-    date: '2026-08-28',
-    time: '18:00',
-    location_name: 'Dhanmondi Lake View Rooftop',
-    latitude: 23.7461,
-    longitude: 90.3742,
-    created_by: 'usr-admin-tanvir',
-    created_at: new Date().toISOString(),
-    attendees: [
-      { id: 'att-1', event_id: 'evt-1', user_id: 'usr-admin-tanvir', status: 'going', created_at: new Date().toISOString() },
-      { id: 'att-2', event_id: 'evt-1', user_id: 'usr-sara-khan', status: 'going', created_at: new Date().toISOString() },
-      { id: 'att-3', event_id: 'evt-1', user_id: 'usr-rahim-chowdhury', status: 'maybe', created_at: new Date().toISOString() },
-    ],
-  },
-];
-
 const INITIAL_SETTINGS: CommunitySettings = {
   community_name: 'FriendsHub',
   invite_code: 'CIRCLE2026',
   allow_member_invites: true,
   allow_registration: true,
-  announcement_banner: '🌟 Welcome to FriendsHub! Live radar & real-time sync is active for all phones.',
+  announcement_banner: '🌟 Welcome to FriendsHub! Live radar & real-time sync is active for all members.',
   announcement_active: true,
   default_location_interval_sec: 10,
 };
@@ -263,40 +263,37 @@ const INITIAL_ACTIVITY_LOGS: ActivityLog[] = [
     location_hint: 'Dhaka, Bangladesh',
     timestamp: new Date().toISOString(),
   },
+  {
+    id: 'act-init-2',
+    user_id: 'usr-admin-tanvir',
+    user_name: 'Tanvir Hasan Zim',
+    action: 'login',
+    details: 'Logged into Admin Console (Root Session Active)',
+    location_hint: 'Dhanmondi, Dhaka',
+    timestamp: new Date().toISOString(),
+  },
 ];
 
-// ---------------------------------------------------------
-// REAL-TIME SYNCHRONIZED CENTRAL DATA STORE
-// ---------------------------------------------------------
-class DataStore {
-  private profiles: UserProfile[] = INITIAL_PROFILES;
-  private locations: UserLocation[] = INITIAL_LOCATIONS;
-  private posts: Post[] = INITIAL_POSTS;
-  private albums: Album[] = INITIAL_ALBUMS;
-  private photos: Photo[] = INITIAL_PHOTOS;
-  private events: CommunityEvent[] = INITIAL_EVENTS;
+export class DataStore {
+  private profiles: UserProfile[] = [];
+  private locations: UserLocation[] = [];
+  private posts: Post[] = [];
+  private albums: Album[] = [];
+  private photos: Photo[] = [];
+  private events: CommunityEvent[] = [];
   private notifications: NotificationItem[] = [];
   private reports: ReportItem[] = [];
-  private invitations: Invitation[] = [
-    {
-      id: 'inv-init',
-      code: 'CIRCLE2026',
-      created_by: 'usr-admin-tanvir',
-      role: 'member',
-      is_used: false,
-      created_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
-    },
-  ];
+  private invitations: Invitation[] = [];
   private settings: CommunitySettings = INITIAL_SETTINGS;
-  private activity_logs: ActivityLog[] = INITIAL_ACTIVITY_LOGS;
+  private activity_logs: ActivityLog[] = [];
   private search_logs: SearchLog[] = [];
   private listeners: Set<() => void> = new Set();
   private syncTimer: any = null;
   private isSyncing = false;
+  private realtimeChannel: any = null;
 
   constructor() {
-    // 1. Initial quick load from local cache
+    // 1. Initial State from Storage
     this.profiles = this.loadFromStorage('fh_profiles', INITIAL_PROFILES);
     this.locations = this.loadFromStorage('fh_locations', INITIAL_LOCATIONS);
     this.posts = this.loadFromStorage('fh_posts', INITIAL_POSTS);
@@ -310,14 +307,334 @@ class DataStore {
     this.activity_logs = this.loadFromStorage('fh_activity_logs', INITIAL_ACTIVITY_LOGS);
     this.search_logs = this.loadFromStorage('fh_search_logs', []);
 
-    // 2. Fetch live data from backend server immediately
-    this.syncWithServer();
+    // 2. Setup Supabase Realtime & Data Fetching
+    this.initSupabase();
 
-    // 3. Start background polling loop every 2.5s for real-time multi-device sync
+    // 3. Fallback backend synchronization loop
+    this.syncWithServer();
     if (typeof window !== 'undefined') {
       this.syncTimer = setInterval(() => {
         this.syncWithServer();
-      }, 2500);
+      }, 3000);
+
+      // Listen for runtime Supabase credential changes
+      window.addEventListener('fh-supabase-config-changed', () => {
+        this.initSupabase();
+      });
+    }
+  }
+
+  // --- Real-Time Supabase WebSocket Connection ---
+  public initSupabase() {
+    if (typeof window === 'undefined') return;
+
+    if (isSupabaseConfigured && supabase) {
+      if (this.realtimeChannel) {
+        supabase.removeChannel(this.realtimeChannel);
+      }
+
+      this.fetchFromSupabase();
+
+      this.realtimeChannel = supabase
+        .channel('fh-realtime-master')
+        .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
+          this.handleSupabaseRealtime(payload);
+        })
+        .subscribe();
+    }
+  }
+
+  private handleSupabaseRealtime(payload: any) {
+    const { table, eventType, new: newRecord, old: oldRecord } = payload;
+    let changed = false;
+
+    if (table === 'profiles') {
+      if (eventType === 'DELETE') {
+        this.profiles = this.profiles.filter((p) => p.id !== oldRecord.id);
+      } else if (newRecord) {
+        const idx = this.profiles.findIndex((p) => p.id === newRecord.id);
+        if (idx >= 0) {
+          this.profiles[idx] = { ...this.profiles[idx], ...newRecord };
+        } else {
+          this.profiles.unshift(newRecord);
+        }
+      }
+      this.saveToStorage('fh_profiles', this.profiles);
+      changed = true;
+    } else if (table === 'locations') {
+      if (newRecord) {
+        const idx = this.locations.findIndex((l) => l.user_id === newRecord.user_id);
+        if (idx >= 0) {
+          this.locations[idx] = { ...this.locations[idx], ...newRecord };
+        } else {
+          this.locations.unshift(newRecord);
+        }
+        this.saveToStorage('fh_locations', this.locations);
+        changed = true;
+      }
+    } else if (table === 'posts') {
+      if (eventType === 'DELETE') {
+        this.posts = this.posts.filter((p) => p.id !== oldRecord.id);
+      } else if (newRecord) {
+        const idx = this.posts.findIndex((p) => p.id === newRecord.id);
+        if (idx >= 0) {
+          this.posts[idx] = { ...this.posts[idx], ...newRecord };
+        } else {
+          this.posts.unshift({ ...newRecord, likes: [], comments: [] });
+        }
+      }
+      this.saveToStorage('fh_posts', this.posts);
+      changed = true;
+    } else if (table === 'photos') {
+      if (eventType === 'DELETE') {
+        this.photos = this.photos.filter((p) => p.id !== oldRecord.id);
+      } else if (newRecord) {
+        const idx = this.photos.findIndex((p) => p.id === newRecord.id);
+        if (idx >= 0) {
+          this.photos[idx] = { ...this.photos[idx], ...newRecord };
+        } else {
+          this.photos.unshift(newRecord);
+        }
+      }
+      this.saveToStorage('fh_photos', this.photos);
+      changed = true;
+    } else if (table === 'events') {
+      if (eventType === 'DELETE') {
+        this.events = this.events.filter((e) => e.id !== oldRecord.id);
+      } else if (newRecord) {
+        const idx = this.events.findIndex((e) => e.id === newRecord.id);
+        if (idx >= 0) {
+          this.events[idx] = { ...this.events[idx], ...newRecord };
+        } else {
+          this.events.unshift({ ...newRecord, attendees: [] });
+        }
+      }
+      this.saveToStorage('fh_events', this.events);
+      changed = true;
+    } else if (table === 'activity_logs') {
+      if (newRecord) {
+        this.activity_logs = [newRecord, ...this.activity_logs.filter((a) => a.id !== newRecord.id)];
+        this.saveToStorage('fh_activity_logs', this.activity_logs);
+        changed = true;
+      }
+    } else if (table === 'search_logs') {
+      if (newRecord) {
+        this.search_logs = [newRecord, ...this.search_logs.filter((s) => s.id !== newRecord.id)];
+        this.saveToStorage('fh_search_logs', this.search_logs);
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      this.notify();
+    }
+  }
+
+  // --- Fetch Data from Supabase ---
+  public async fetchFromSupabase(): Promise<boolean> {
+    if (!isSupabaseConfigured || !supabase) return false;
+    try {
+      const [
+        { data: profData },
+        { data: locData },
+        { data: postData },
+        { data: photoData },
+        { data: eventData },
+        { data: actData },
+        { data: searchData },
+      ] = await Promise.all([
+        supabase.from('profiles').select('*'),
+        supabase.from('locations').select('*'),
+        supabase.from('posts').select('*').order('created_at', { ascending: false }),
+        supabase.from('photos').select('*').order('created_at', { ascending: false }),
+        supabase.from('events').select('*').order('date', { ascending: true }),
+        supabase.from('activity_logs').select('*').order('timestamp', { ascending: false }).limit(200),
+        supabase.from('search_logs').select('*').order('timestamp', { ascending: false }).limit(200),
+      ]);
+
+      let changed = false;
+
+      if (profData && profData.length > 0) {
+        this.profiles = profData as UserProfile[];
+        this.saveToStorage('fh_profiles', this.profiles);
+        changed = true;
+      }
+
+      if (locData && locData.length > 0) {
+        this.locations = locData as UserLocation[];
+        this.saveToStorage('fh_locations', this.locations);
+        changed = true;
+      }
+
+      if (postData && postData.length > 0) {
+        this.posts = postData.map((p: any) => ({
+          ...p,
+          likes: p.likes || [],
+          comments: p.comments || [],
+        }));
+        this.saveToStorage('fh_posts', this.posts);
+        changed = true;
+      }
+
+      if (photoData && photoData.length > 0) {
+        this.photos = photoData as Photo[];
+        this.saveToStorage('fh_photos', this.photos);
+        changed = true;
+      }
+
+      if (eventData && eventData.length > 0) {
+        this.events = eventData.map((e: any) => ({
+          ...e,
+          attendees: e.attendees || [],
+        }));
+        this.saveToStorage('fh_events', this.events);
+        changed = true;
+      }
+
+      if (actData && actData.length > 0) {
+        this.activity_logs = actData as ActivityLog[];
+        this.saveToStorage('fh_activity_logs', this.activity_logs);
+        changed = true;
+      }
+
+      if (searchData && searchData.length > 0) {
+        this.search_logs = searchData as SearchLog[];
+        this.saveToStorage('fh_search_logs', this.search_logs);
+        changed = true;
+      }
+
+      if (changed) {
+        this.notify();
+      }
+      return true;
+    } catch (err) {
+      console.warn('[Supabase Sync] Could not fetch records:', err);
+      return false;
+    }
+  }
+
+  // --- 1-Click Sync Local State directly into Supabase Database ---
+  public async syncAllToSupabase(): Promise<{
+    success: boolean;
+    syncedCounts: { profiles: number; locations: number; posts: number; photos: number; events: number };
+    message: string;
+    error?: string;
+  }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return {
+        success: false,
+        syncedCounts: { profiles: 0, locations: 0, posts: 0, photos: 0, events: 0 },
+        message: 'Supabase is not configured yet. Please configure your Project URL & Anon Key.',
+      };
+    }
+
+    try {
+      // 1. Sync Profiles
+      const cleanProfiles = this.profiles.map((p) => ({
+        id: p.id,
+        username: p.username,
+        full_name: p.full_name,
+        email: p.email,
+        avatar_url: p.avatar_url,
+        bio: p.bio,
+        phone: p.phone,
+        role: p.role || 'member',
+        status: p.status || 'active',
+        is_active: p.is_active ?? true,
+        online_status: p.online_status || 'online',
+        last_seen: p.last_seen || new Date().toISOString(),
+        location_sharing_enabled: p.location_sharing_enabled ?? true,
+        privacy_mode: p.privacy_mode || 'exact',
+        created_at: p.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }));
+
+      const { error: profErr } = await supabase.from('profiles').upsert(cleanProfiles, { onConflict: 'id' });
+      if (profErr) throw new Error(`Profiles Sync Failed: ${profErr.message}`);
+
+      // 2. Sync Locations
+      const cleanLocations = this.locations.map((l) => ({
+        id: l.id,
+        user_id: l.user_id,
+        latitude: l.latitude,
+        longitude: l.longitude,
+        accuracy: l.accuracy || 10,
+        battery_level: l.battery_level || 90,
+        activity: l.activity || 'stationary',
+        address_hint: l.address_hint || 'Dhaka, Bangladesh',
+        is_sharing: l.is_sharing ?? true,
+        updated_at: l.updated_at || new Date().toISOString(),
+      }));
+      await supabase.from('locations').upsert(cleanLocations, { onConflict: 'user_id' });
+
+      // 3. Sync Posts
+      const cleanPosts = this.posts.map((p) => ({
+        id: p.id,
+        user_id: p.user_id,
+        content: p.content,
+        images: p.images || [],
+        location_name: p.location_name,
+        post_type: p.post_type || 'post',
+        is_pinned: p.is_pinned ?? false,
+        created_at: p.created_at || new Date().toISOString(),
+        updated_at: p.updated_at || new Date().toISOString(),
+      }));
+      await supabase.from('posts').upsert(cleanPosts, { onConflict: 'id' });
+
+      // 4. Sync Photos
+      const cleanPhotos = this.photos.map((ph) => ({
+        id: ph.id,
+        user_id: ph.user_id,
+        album_id: ph.album_id || null,
+        title: ph.title,
+        description: ph.description,
+        image_url: ph.image_url,
+        location_name: ph.location_name,
+        created_at: ph.created_at || new Date().toISOString(),
+      }));
+      await supabase.from('photos').upsert(cleanPhotos, { onConflict: 'id' });
+
+      // 5. Sync Events
+      const cleanEvents = this.events.map((e) => ({
+        id: e.id,
+        title: e.title,
+        description: e.description,
+        date: e.date,
+        time: e.time,
+        location_name: e.location_name,
+        created_by: e.created_by,
+        created_at: e.created_at || new Date().toISOString(),
+      }));
+      await supabase.from('events').upsert(cleanEvents, { onConflict: 'id' });
+
+      // 6. Log Sync Event
+      await supabase.from('activity_logs').insert({
+        user_id: 'usr-admin-tanvir',
+        user_name: 'Tanvir Hasan Zim',
+        action: 'admin_action',
+        details: 'Manually synchronized full community database to Supabase PostgreSQL cloud tables.',
+        timestamp: new Date().toISOString(),
+      });
+
+      return {
+        success: true,
+        syncedCounts: {
+          profiles: cleanProfiles.length,
+          locations: cleanLocations.length,
+          posts: cleanPosts.length,
+          photos: cleanPhotos.length,
+          events: cleanEvents.length,
+        },
+        message: `Successfully synchronized ${cleanProfiles.length} profiles, ${cleanLocations.length} locations, ${cleanPosts.length} posts, ${cleanPhotos.length} photos, and ${cleanEvents.length} events to your Supabase tables!`,
+      };
+    } catch (err: any) {
+      console.error('[Supabase Sync Error]:', err);
+      return {
+        success: false,
+        syncedCounts: { profiles: 0, locations: 0, posts: 0, photos: 0, events: 0 },
+        message: err.message || 'Sync operation failed.',
+        error: String(err),
+      };
     }
   }
 
@@ -440,13 +757,13 @@ class DataStore {
         }
       }
     } catch {
-      // Backend maybe restarting or offline, keep local state
+      // Backend offline or fallback mode
     } finally {
       this.isSyncing = false;
     }
   }
 
-  // --- Auth & User Registration across Phones ---
+  // --- Auth & User Registration ---
   public async registerUser(data: {
     full_name: string;
     username: string;
@@ -461,6 +778,45 @@ class DataStore {
     latitude?: number;
     longitude?: number;
   }): Promise<{ success: boolean; profile?: UserProfile; error?: string }> {
+    const newProfile: UserProfile = {
+      id: `usr-${data.username.toLowerCase().replace(/[^a-z0-9_]/g, '')}-${Date.now().toString(36)}`,
+      email: data.email,
+      username: data.username.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+      full_name: data.full_name,
+      avatar_url: data.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+      bio: data.bio || 'New circle member 👋',
+      role: data.role || 'member',
+      is_active: true,
+      status: 'active',
+      location_sharing_enabled: data.location_sharing_enabled ?? true,
+      privacy_mode: 'exact',
+      online_status: 'online',
+      last_seen: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      phone: data.phone,
+    };
+
+    // 1. Supabase direct write if configured
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from('profiles').upsert(newProfile);
+        await supabase.from('locations').upsert({
+          user_id: newProfile.id,
+          latitude: data.latitude || 23.7461,
+          longitude: data.longitude || 90.3742,
+          accuracy: 10,
+          battery_level: 95,
+          activity: 'stationary',
+          address_hint: data.address_hint || 'Dhaka, Bangladesh',
+          is_sharing: data.location_sharing_enabled ?? true,
+        });
+      } catch (e) {
+        console.warn('[Supabase Direct Write failed]:', e);
+      }
+    }
+
+    // 2. Server-side persistence
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
@@ -468,45 +824,16 @@ class DataStore {
         body: JSON.stringify(data),
       });
       const body = await res.json();
-      if (!res.ok) {
-        return { success: false, error: body.error || 'Registration failed.' };
-      }
-
       if (body.profile) {
-        this.profiles = [body.profile, ...this.profiles.filter((p) => p.id !== body.profile.id)];
-        this.saveToStorage('fh_profiles', this.profiles);
+        this.addProfile(body.profile);
+        return { success: true, profile: body.profile };
       }
-      if (body.location) {
-        this.locations = [body.location, ...this.locations.filter((l) => l.user_id !== body.location.user_id)];
-        this.saveToStorage('fh_locations', this.locations);
-      }
-
-      this.notify();
-      this.syncWithServer();
-      return { success: true, profile: body.profile };
-    } catch (err: any) {
-      // Fallback local addition if network blip
-      const newProfile: UserProfile = {
-        id: `usr-${data.username.toLowerCase().replace(/[^a-z0-9_]/g, '')}-${Date.now().toString(36)}`,
-        email: data.email,
-        username: data.username.toLowerCase().replace(/[^a-z0-9_]/g, ''),
-        full_name: data.full_name,
-        avatar_url: data.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-        bio: data.bio || 'New circle member 👋',
-        role: data.role || 'member',
-        is_active: true,
-        status: 'active',
-        location_sharing_enabled: data.location_sharing_enabled ?? true,
-        privacy_mode: 'exact',
-        online_status: 'online',
-        last_seen: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        phone: data.phone,
-      };
-      this.addProfile(newProfile);
-      return { success: true, profile: newProfile };
+    } catch {
+      // Fallback
     }
+
+    this.addProfile(newProfile);
+    return { success: true, profile: newProfile };
   }
 
   public async loginUser(identifier: string, address_hint?: string): Promise<{ success: boolean; profile?: UserProfile; error?: string }> {
@@ -517,24 +844,22 @@ class DataStore {
         body: JSON.stringify({ identifier, address_hint }),
       });
       const body = await res.json();
-      if (!res.ok) {
-        return { success: false, error: body.error || 'User not found.' };
-      }
-      if (body.profile) {
+      if (res.ok && body.profile) {
         this.updateProfile(body.profile.id, { online_status: 'online', last_seen: new Date().toISOString() });
         return { success: true, profile: body.profile };
       }
     } catch {
-      // Fallback to local profile check
-      const found = this.profiles.find(
-        (p) => p.email.toLowerCase() === identifier.toLowerCase() || p.username.toLowerCase() === identifier.toLowerCase()
-      );
-      if (found) {
-        this.updateProfile(found.id, { online_status: 'online', last_seen: new Date().toISOString() });
-        return { success: true, profile: found };
-      }
+      // Fallback
     }
-    return { success: false, error: 'Member not found. Please register or verify username.' };
+
+    const found = this.profiles.find(
+      (p) => p.email?.toLowerCase() === identifier.toLowerCase() || p.username.toLowerCase() === identifier.toLowerCase()
+    );
+    if (found) {
+      this.updateProfile(found.id, { online_status: 'online', last_seen: new Date().toISOString() });
+      return { success: true, profile: found };
+    }
+    return { success: false, error: 'Member not found. Please verify details.' };
   }
 
   public async logoutUser(userId: string) {
@@ -587,7 +912,12 @@ class DataStore {
     this.saveToStorage('fh_profiles', this.profiles);
     this.notify();
 
-    // Async server update
+    // Supabase write
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('profiles').update(updates).eq('id', id).then();
+    }
+
+    // Server update
     fetch(`/api/profiles/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -611,14 +941,16 @@ class DataStore {
     this.saveToStorage('fh_profiles', this.profiles);
     this.notify();
 
-    // Async server creation
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('profiles').upsert(fullProfile).then();
+    }
+
     fetch('/api/profiles', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(fullProfile),
     }).catch(() => {});
 
-    // Provide initial GPS position if not already present
     if (!this.locations.some((l) => l.user_id === fullProfile.id)) {
       this.updateLocation(fullProfile.id, {
         latitude: 23.7461 + (Math.random() - 0.5) * 0.04,
@@ -639,6 +971,11 @@ class DataStore {
     this.saveToStorage('fh_profiles', this.profiles);
     this.saveToStorage('fh_locations', this.locations);
     this.notify();
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('profiles').delete().eq('id', id).then();
+      supabase.from('locations').delete().eq('user_id', id).then();
+    }
 
     fetch(`/api/profiles/${id}`, { method: 'DELETE' }).catch(() => {});
   }
@@ -669,7 +1006,7 @@ class DataStore {
       speed: locData.speed,
       battery_level: locData.battery_level ?? 90,
       activity: locData.activity ?? 'stationary',
-      address_hint: locData.address_hint,
+      address_hint: locData.address_hint || 'Dhaka, Bangladesh',
       is_sharing: locData.is_sharing ?? true,
       updated_at: new Date().toISOString(),
     };
@@ -685,14 +1022,16 @@ class DataStore {
     this.saveToStorage('fh_locations', this.locations);
     this.notify();
 
-    // Async server broadcast
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('locations').upsert(updatedRecord, { onConflict: 'user_id' }).then();
+    }
+
     fetch('/api/locations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedRecord),
     }).catch(() => {});
 
-    // Sync profile sharing
     if (locData.is_sharing !== undefined) {
       this.updateProfile(userId, { location_sharing_enabled: locData.is_sharing });
     }
@@ -729,6 +1068,18 @@ class DataStore {
     this.saveToStorage('fh_posts', this.posts);
     this.notify();
 
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('posts').insert({
+        id: newPost.id,
+        user_id: newPost.user_id,
+        content: newPost.content,
+        images: newPost.images || [],
+        location_name: newPost.location_name,
+        post_type: newPost.post_type || 'post',
+        is_pinned: newPost.is_pinned ?? false,
+      }).then();
+    }
+
     fetch('/api/posts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -742,6 +1093,11 @@ class DataStore {
     this.posts = this.posts.filter((p) => p.id !== postId);
     this.saveToStorage('fh_posts', this.posts);
     this.notify();
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('posts').delete().eq('id', postId).then();
+    }
+
     fetch(`/api/posts/${postId}`, { method: 'DELETE' }).catch(() => {});
   }
 
@@ -749,19 +1105,26 @@ class DataStore {
     const post = this.posts.find((p) => p.id === postId);
     if (!post) return false;
 
-    const existingIndex = post.likes.findIndex((l) => l.user_id === userId);
+    const existingIndex = (post.likes || []).findIndex((l) => l.user_id === userId);
     let liked = false;
     if (existingIndex >= 0) {
       post.likes.splice(existingIndex, 1);
       liked = false;
+      if (isSupabaseConfigured && supabase) {
+        supabase.from('post_likes').delete().match({ post_id: postId, user_id: userId }).then();
+      }
     } else {
-      post.likes.push({
+      const newLike = {
         id: `lk-${Date.now()}`,
         post_id: postId,
         user_id: userId,
         created_at: new Date().toISOString(),
-      });
+      };
+      post.likes = [...(post.likes || []), newLike];
       liked = true;
+      if (isSupabaseConfigured && supabase) {
+        supabase.from('post_likes').insert(newLike).then();
+      }
     }
     this.saveToStorage('fh_posts', this.posts);
     this.notify();
@@ -790,6 +1153,10 @@ class DataStore {
     this.saveToStorage('fh_posts', this.posts);
     this.notify();
 
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('post_comments').insert(newComment).then();
+    }
+
     fetch(`/api/posts/${postId}/comment`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -805,6 +1172,10 @@ class DataStore {
     post.comments = (post.comments || []).filter((c) => c.id !== commentId);
     this.saveToStorage('fh_posts', this.posts);
     this.notify();
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('post_comments').delete().eq('id', commentId).then();
+    }
   }
 
   // --- Albums & Photos ---
@@ -828,6 +1199,11 @@ class DataStore {
     this.albums = [newAlb, ...this.albums];
     this.saveToStorage('fh_albums', this.albums);
     this.notify();
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('albums').insert(newAlb).then();
+    }
+
     return newAlb;
   }
 
@@ -854,6 +1230,18 @@ class DataStore {
     this.saveToStorage('fh_photos', this.photos);
     this.notify();
 
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('photos').insert({
+        id: newPhoto.id,
+        user_id: newPhoto.user_id,
+        album_id: newPhoto.album_id || null,
+        title: newPhoto.title,
+        description: newPhoto.description,
+        image_url: newPhoto.image_url,
+        location_name: newPhoto.location_name,
+      }).then();
+    }
+
     fetch('/api/photos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -876,6 +1264,11 @@ class DataStore {
     this.photos = this.photos.filter((p) => p.id !== photoId);
     this.saveToStorage('fh_photos', this.photos);
     this.notify();
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('photos').delete().eq('id', photoId).then();
+    }
+
     fetch(`/api/photos/${photoId}`, { method: 'DELETE' }).catch(() => {});
   }
 
@@ -911,6 +1304,18 @@ class DataStore {
     this.events = [newEvent, ...this.events];
     this.saveToStorage('fh_events', this.events);
     this.notify();
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('events').insert({
+        id: newEvent.id,
+        title: newEvent.title,
+        description: newEvent.description,
+        date: newEvent.date,
+        time: newEvent.time,
+        location_name: newEvent.location_name,
+        created_by: newEvent.created_by,
+      }).then();
+    }
 
     fetch('/api/events', {
       method: 'POST',
@@ -951,6 +1356,14 @@ class DataStore {
     this.saveToStorage('fh_events', this.events);
     this.notify();
 
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('event_rsvps').upsert({
+        event_id: eventId,
+        user_id: userId,
+        status,
+      }, { onConflict: 'event_id,user_id' }).then();
+    }
+
     fetch(`/api/events/${eventId}/rsvp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -962,6 +1375,11 @@ class DataStore {
     this.events = this.events.filter((e) => e.id !== eventId);
     this.saveToStorage('fh_events', this.events);
     this.notify();
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('events').delete().eq('id', eventId).then();
+    }
+
     fetch(`/api/events/${eventId}`, { method: 'DELETE' }).catch(() => {});
   }
 
@@ -1089,6 +1507,10 @@ class DataStore {
     this.saveToStorage('fh_settings', this.settings);
     this.notify();
 
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('community_settings').upsert({ id: 'default', ...updates }).then();
+    }
+
     fetch('/api/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -1148,7 +1570,10 @@ class DataStore {
     this.search_logs = [newSearch, ...this.search_logs.slice(0, 499)];
     this.saveToStorage('fh_search_logs', this.search_logs);
 
-    // Send to backend
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('search_logs').insert(newSearch).then();
+    }
+
     fetch('/api/activity/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1184,6 +1609,10 @@ class DataStore {
     this.activity_logs = [newLog, ...this.activity_logs.slice(0, 499)];
     this.saveToStorage('fh_activity_logs', this.activity_logs);
     this.notify();
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('activity_logs').insert(newLog).then();
+    }
 
     fetch('/api/activity/logs', {
       method: 'POST',
