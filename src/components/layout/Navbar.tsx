@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   MapPin,
   Bell,
-  Shield,
   LogOut,
   User as UserIcon,
   Settings,
@@ -27,7 +26,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   onOpenProfile,
 }) => {
-  const { currentUser, logout, isAdmin } = useAuth();
+  const { currentUser, logout } = useAuth();
   const { isSharing, toggleLocationSharing, isLocating } = useLocationContext();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   
@@ -198,8 +197,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="text-xs font-medium text-zinc-200 truncate max-w-[120px]">
                   {currentUser?.full_name}
                 </div>
-                <div className="text-[10px] text-zinc-500 font-mono capitalize">
-                  {currentUser?.role === 'admin' ? '👑 Admin' : 'Member'}
+                <div className="text-[10px] text-zinc-500 font-mono">
+                  @{currentUser?.username}
                 </div>
               </div>
               <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 p-[1px] shrink-0">
@@ -216,11 +215,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="px-3 py-2 border-b border-white/5">
                   <p className="font-serif italic font-semibold text-sm text-white truncate">{currentUser?.full_name}</p>
                   <p className="text-xs text-zinc-500 font-mono truncate">@{currentUser?.username}</p>
-                  {isAdmin && (
-                    <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">
-                      <Shield className="w-3 h-3" /> Admin
-                    </span>
-                  )}
                 </div>
 
                 <div className="py-1 space-y-0.5 text-xs">
@@ -247,19 +241,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <Settings className="w-4 h-4 text-zinc-400" />
                     <span>Settings & Privacy</span>
                   </button>
-                  {isAdmin && (
-                    <button
-                      id="btn-menu-admin-panel"
-                      onClick={() => {
-                        setActiveTab('admin');
-                        setShowUserMenu(false);
-                      }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-indigo-300 hover:text-white hover:bg-indigo-950/40 transition-colors text-left font-medium"
-                    >
-                      <Shield className="w-4 h-4 text-indigo-400" />
-                      <span>Admin Control Panel</span>
-                    </button>
-                  )}
                 </div>
 
                 <div className="pt-1 border-t border-white/5">

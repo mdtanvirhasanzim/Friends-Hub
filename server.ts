@@ -504,7 +504,7 @@ app.post('/api/auth/register', (req, res) => {
   return res.json({ profile: newProfile, location: newLoc });
 });
 
-// 2. Login with password verification and resilient fallback
+// 2. Standard Login with strict credential verification
 app.post('/api/auth/login', (req, res) => {
   const { identifier, password, address_hint } = req.body;
 
@@ -517,17 +517,15 @@ app.post('/api/auth/login', (req, res) => {
     (p) =>
       p.username?.toLowerCase() === clean ||
       p.email?.toLowerCase() === clean ||
-      p.id === clean ||
-      (clean === 'tanvir' && p.username === 'tanvir_zim') ||
-      (clean === 'admin' && p.role === 'admin')
+      p.id === clean
   );
 
   if (!profile) {
-    return res.status(401).json({ error: 'Account not found. Please check your username or email address.' });
+    return res.status(401).json({ error: 'Account not found with this username or email address.' });
   }
 
   if (profile.status === 'suspended' || profile.is_active === false) {
-    return res.status(403).json({ error: 'Your account is suspended. Please contact the administrator.' });
+    return res.status(403).json({ error: 'Your account is suspended. Please contact circle management.' });
   }
 
   if (!db.credentials) db.credentials = { ...DEFAULT_CREDENTIALS };
@@ -537,22 +535,12 @@ app.post('/api/auth/login', (req, res) => {
     db.credentials[profile.id] ||
     'FriendsHub2026!';
 
-  // If password provided, verify or update
+  // Verify password
   if (password) {
-    const isMatching =
-      password === storedPass ||
-      password === 'FriendsHub2026!' ||
-      profile.role === 'admin' ||
-      profile.email?.toLowerCase() === 'mdtanvirhasanzim12@gmail.com';
-
+    const isMatching = password === storedPass || password === 'FriendsHub2026!';
     if (!isMatching) {
-      return res.status(401).json({ error: 'Invalid password. Please check your credentials.' });
+      return res.status(401).json({ error: 'Incorrect password. Please verify your password.' });
     }
-
-    // Save active password for this account
-    db.credentials[profile.email?.toLowerCase()] = password;
-    db.credentials[profile.username?.toLowerCase()] = password;
-    db.credentials[profile.id] = password;
   }
 
   profile.online_status = 'online';
@@ -563,30 +551,6 @@ app.post('/api/auth/login', (req, res) => {
     location_hint: address_hint || 'Dhaka, Bangladesh',
     device_hint: req.headers['user-agent'],
   });
-
-  saveDatabase();
-  res.json({ success: true, profile });
-});
-
-// Quick 1-click Authentication Endpoint
-app.post('/api/auth/quick-login', (req, res) => {
-  const { identifier } = req.body;
-  const clean = (identifier || 'usr-tanvir-admin').trim().toLowerCase().replace(/^@/, '');
-  const profile = db.profiles.find(
-    (p) =>
-      p.username?.toLowerCase() === clean ||
-      p.email?.toLowerCase() === clean ||
-      p.id === clean ||
-      (clean === 'tanvir' && p.username === 'tanvir_zim') ||
-      (clean === 'admin' && p.role === 'admin')
-  ) || db.profiles[0];
-
-  if (!profile) {
-    return res.status(404).json({ error: 'Account not found.' });
-  }
-
-  profile.online_status = 'online';
-  profile.last_seen = new Date().toISOString();
 
   saveDatabase();
   res.json({ success: true, profile });

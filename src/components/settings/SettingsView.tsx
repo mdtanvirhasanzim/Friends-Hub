@@ -34,7 +34,7 @@ import {
 } from '../../lib/supabase';
 
 export const SettingsView: React.FC = () => {
-  const { currentUser, updateCurrentUser, isAdmin, isSupabaseConnected } = useAuth();
+  const { currentUser, updateCurrentUser, isSupabaseConnected } = useAuth();
   const { isSharing, toggleLocationSharing, permissionStatus } = useLocationContext();
 
   const [privacyMode, setPrivacyMode] = useState<'exact' | 'approximate'>(
@@ -627,30 +627,28 @@ export const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      {/* 5. RESET DATA (ADMIN ONLY) */}
-      {isAdmin && (
-        <div className="bg-[#080808] p-4 sm:p-6 rounded-3xl border border-[#1a1a1a] shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h4 className="font-serif font-bold text-sm text-zinc-200">Reset Initial State</h4>
-            <p className="text-xs text-zinc-400 mt-0.5">
-              Reset circle records back to default sample state.
-            </p>
-            {resetSuccess && (
-              <span className="text-xs text-emerald-400 mt-1 block font-medium">
-                ✓ Data successfully reset!
-              </span>
-            )}
-          </div>
-
-          <button
-            onClick={handleResetData}
-            className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-rose-950/40 text-zinc-300 hover:text-rose-300 border border-white/10 hover:border-rose-500/40 text-xs font-medium transition-all flex items-center gap-2 shrink-0 min-h-[40px]"
-          >
-            <RotateCcw className="w-4 h-4" />
-            <span>Reset Data</span>
-          </button>
+      {/* 5. RESET / RE-SYNC LOCAL STATE */}
+      <div className="bg-[#080808] p-4 sm:p-6 rounded-3xl border border-[#1a1a1a] shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h4 className="font-serif font-bold text-sm text-zinc-200">Re-sync & Clear Local Cache</h4>
+          <p className="text-xs text-zinc-400 mt-0.5">
+            Reset circle records and re-fetch clean database records.
+          </p>
+          {resetSuccess && (
+            <span className="text-xs text-emerald-400 mt-1 block font-medium">
+              ✓ Data successfully re-synchronized!
+            </span>
+          )}
         </div>
-      )}
+
+        <button
+          onClick={handleResetData}
+          className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-rose-950/40 text-zinc-300 hover:text-rose-300 border border-white/10 hover:border-rose-500/40 text-xs font-medium transition-all flex items-center gap-2 shrink-0 min-h-[40px]"
+        >
+          <RotateCcw className="w-4 h-4" />
+          <span>Re-sync Cache</span>
+        </button>
+      </div>
     </div>
   );
 };

@@ -10,7 +10,6 @@ interface AuthContextType {
   loading: boolean;
   isLoading: boolean; // Alias for compatibility
   login: (emailOrUsername: string, password?: string) => Promise<{ success: boolean; error?: string }>;
-  quickLogin: (identifier: string) => Promise<{ success: boolean; error?: string }>;
   register: (data: {
     email: string;
     username: string;
@@ -124,7 +123,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // If no Supabase user or fallback mode, check local store
       if (isMounted) {
         const savedUserId = localStorage.getItem('fh_active_user_id');
-        const hasExplicitlyLoggedOut = localStorage.getItem('fh_explicit_logout') === 'true';
 
         if (savedUserId) {
           const found = store.getProfile(savedUserId);
@@ -133,13 +131,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } else {
             localStorage.removeItem('fh_active_user_id');
             setCurrentUser(null);
-          }
-        } else if (!hasExplicitlyLoggedOut) {
-          // Auto-init to default primary organizer/admin account so all real-time sub-databases are live
-          const defaultAdmin = store.getProfile('usr-tanvir-admin') || store.getProfiles()[0];
-          if (defaultAdmin) {
-            setCurrentUser(defaultAdmin);
-            localStorage.setItem('fh_active_user_id', defaultAdmin.id);
           }
         } else {
           setCurrentUser(null);
@@ -267,33 +258,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
       return { success: false, error: err.message || 'Login failed' };
     }
-  };
-
-  // Quick 1-click login handler
-  const quickLogin = async (identifier: string): Promise<{ success: boolean; error?: string }> => {
-    setLoading(true);
-    try {
-      const res = await store.quickLoginUser(identifier);
-      if (res.success && res.profile) {
-        setCurrentUser(res.profile);
-        localStorage.setItem('fh_active_user_id', res.profile.id);
-        localStorage.removeItem('fh_explicit_logout');
-        setLoading(false);
-        return { success: true };
-      }
-    } catch {
-      // safe
-    }
-    const profile = store.getProfile(identifier) || store.getProfiles()[0];
-    if (profile) {
-      setCurrentUser(profile);
-      localStorage.setItem('fh_active_user_id', profile.id);
-      localStorage.removeItem('fh_explicit_logout');
-      setLoading(false);
-      return { success: true };
-    }
-    setLoading(false);
-    return { success: false, error: 'Could not switch user' };
   };
 
   // Register handler
@@ -515,7 +479,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         isLoading: loading,
         login,
-        quickLogin,
         register,
         logout,
         resetPassword,

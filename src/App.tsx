@@ -12,7 +12,6 @@ import { EventsView } from './components/events/EventsView';
 import { FriendsDirectory } from './components/friends/FriendsDirectory';
 import { NotificationsView } from './components/notifications/NotificationsView';
 import { ProfileView } from './components/profile/ProfileView';
-import { AdminDashboard } from './components/admin/AdminDashboard';
 import { SettingsView } from './components/settings/SettingsView';
 
 const MainAppContent: React.FC = () => {
@@ -96,8 +95,6 @@ const MainAppContent: React.FC = () => {
           )}
 
           {activeTab === 'profile' && <ProfileView />}
-
-          {activeTab === 'admin' && <AdminDashboard />}
 
           {activeTab === 'settings' && <SettingsView />}
         </main>

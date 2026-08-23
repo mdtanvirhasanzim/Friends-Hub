@@ -4,7 +4,6 @@ import {
   Mail,
   Camera,
   Calendar,
-  Shield,
   Radio,
   Save,
   CheckCircle2,
@@ -124,11 +123,6 @@ export const ProfileView: React.FC = () => {
               <div className="mb-2">
                 <div className="flex items-center gap-2">
                   <h2 className="text-2xl font-serif font-bold text-white">{fullName}</h2>
-                  {currentUser?.role === 'admin' && (
-                    <span className="text-xs px-2.5 py-0.5 bg-zinc-800 text-zinc-300 rounded-full font-medium border border-white/10 flex items-center gap-1">
-                      <Shield className="w-3 h-3 text-indigo-400" /> Admin
-                    </span>
-                  )}
                 </div>
                 <p className="text-xs text-zinc-400">@{username}</p>
               </div>

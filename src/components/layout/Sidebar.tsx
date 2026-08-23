@@ -8,10 +8,7 @@ import {
   Bell,
   User,
   Settings,
-  ShieldAlert,
-  Radio,
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
 import { useLocationContext } from '../../context/LocationContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { store } from '../../lib/storage';
@@ -22,7 +19,6 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
-  const { isAdmin } = useAuth();
   const { isSharing, toggleLocationSharing } = useLocationContext();
   const { unreadCount } = useNotifications();
 
@@ -84,18 +80,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     },
   ];
 
-  // Only append Admin Panel to navItems if authenticated user has admin role
-  if (isAdmin) {
-    navItems.push({
-      id: 'admin',
-      label: 'Admin Panel',
-      icon: ShieldAlert,
-      badge: 'Admin',
-      badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30',
-      pulse: false,
-    });
-  }
-
   // Mobile navigation items
   const mobileNavItems = [
     { id: 'feed', label: 'Feed', icon: Home },
@@ -105,10 +89,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     { id: 'events', label: 'Events', icon: Calendar },
     { id: 'profile', label: 'Profile', icon: User },
   ];
-
-  if (isAdmin) {
-    mobileNavItems.push({ id: 'admin', label: 'Admin', icon: ShieldAlert });
-  }
 
   return (
     <>

@@ -6,23 +6,21 @@ import {
   User,
   Shield,
   ArrowRight,
-  Sparkles,
   KeyRound,
   AlertCircle,
   CheckCircle2,
   Eye,
   EyeOff,
   Phone,
-  Zap,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export const LoginView: React.FC = () => {
-  const { login, quickLogin, register, resetPassword } = useAuth();
+  const { login, register, resetPassword } = useAuth();
 
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
-  const [identifier, setIdentifier] = useState('mdtanvirhasanzim12@gmail.com');
-  const [password, setPassword] = useState('FriendsHub2026!');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -48,52 +46,6 @@ export const LoginView: React.FC = () => {
     'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80',
     'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&auto=format&fit=crop&q=80',
   ];
-
-  const quickAccounts = [
-    {
-      id: 'usr-tanvir-admin',
-      name: 'Tanvir Hasan Zim',
-      handle: 'tanvir_zim',
-      email: 'mdtanvirhasanzim12@gmail.com',
-      role: 'Organizer & Admin',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'usr-sara-khan',
-      name: 'Sara Khan',
-      handle: 'sara_k',
-      email: 'sara.k@gmail.com',
-      role: 'Member (Gulshan)',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'usr-rahim-chowdhury',
-      name: 'Rahim Chowdhury',
-      handle: 'rahim_c',
-      email: 'rahim.c@gmail.com',
-      role: 'Member (Agargaon)',
-      avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=400&auto=format&fit=crop&q=80',
-    },
-  ];
-
-  const handleInstantSignIn = async (userEmailOrId: string) => {
-    setErrorMsg(null);
-    setLoading(true);
-    try {
-      const res = await quickLogin(userEmailOrId);
-      if (!res.success) {
-        // Try fallback login with default password
-        const fallbackRes = await login(userEmailOrId, 'FriendsHub2026!');
-        if (!fallbackRes.success) {
-          setErrorMsg(fallbackRes.error || 'Authentication error. Please try again.');
-        }
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Login error.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -293,7 +245,7 @@ export const LoginView: React.FC = () => {
                       autoComplete="username"
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
-                      placeholder="mdtanvirhasanzim12@gmail.com"
+                      placeholder="Username or email address"
                       className="w-full pl-10 pr-4 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                     />
                   </div>
@@ -326,7 +278,7 @@ export const LoginView: React.FC = () => {
                       autoComplete="current-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
+                      placeholder="Password"
                       className="w-full pl-10 pr-10 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                     />
                     <button
@@ -349,7 +301,6 @@ export const LoginView: React.FC = () => {
                     />
                     <span>Remember session</span>
                   </label>
-                  <span className="text-[11px] text-zinc-500">Default pass: FriendsHub2026!</span>
                 </div>
 
                 <button
@@ -365,54 +316,12 @@ export const LoginView: React.FC = () => {
                     </span>
                   ) : (
                     <>
-                      <span>Sign In to FriendsHub</span>
+                      <span>Sign In</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
                 </button>
               </form>
-
-              {/* Quick 1-Click Access for Primary Accounts */}
-              <div className="pt-3 border-t border-white/5 space-y-2">
-                <div className="flex items-center justify-between text-[11px] text-zinc-400">
-                  <span className="flex items-center gap-1 font-medium text-zinc-300">
-                    <Zap className="w-3.5 h-3.5 text-amber-400" />
-                    Instant 1-Click Access
-                  </span>
-                  <span className="text-zinc-500">No typing needed</span>
-                </div>
-                <div className="space-y-1.5">
-                  {quickAccounts.map((acc) => (
-                    <button
-                      key={acc.id}
-                      id={`btn-quick-login-${acc.handle}`}
-                      type="button"
-                      disabled={loading}
-                      onClick={() => handleInstantSignIn(acc.id)}
-                      className="w-full p-2 rounded-xl bg-[#141414] hover:bg-[#1c1c1c] border border-white/5 hover:border-indigo-500/40 transition-all flex items-center justify-between text-left group"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <img
-                          src={acc.avatar}
-                          alt={acc.name}
-                          className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-white/10"
-                        />
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-zinc-200 group-hover:text-white truncate">
-                            {acc.name}
-                          </p>
-                          <p className="text-[10px] text-zinc-500 truncate">
-                            {acc.email} • {acc.role}
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-[11px] font-medium text-indigo-400 group-hover:text-indigo-300 shrink-0 ml-2">
-                        Enter &rarr;
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
 

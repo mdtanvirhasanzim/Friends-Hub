@@ -853,10 +853,7 @@ export class DataStore {
         return { success: true, profile: body.profile };
       }
       if (!res.ok && body.error) {
-        // If password strictly invalid, return that message
-        if (body.error.includes('password') && password) {
-          return { success: false, error: body.error };
-        }
+        return { success: false, error: body.error };
       }
     } catch (err: any) {
       console.warn('[Login Server Error]:', err);
@@ -867,51 +864,18 @@ export class DataStore {
       (p) =>
         p.email?.toLowerCase() === clean ||
         p.username.toLowerCase() === clean ||
-        p.id === clean ||
-        (clean === 'tanvir' && p.username === 'tanvir_zim') ||
-        (clean === 'admin' && p.role === 'admin')
-    ) || (clean.includes('tanvir') || clean.includes('admin') ? this.profiles.find(p => p.role === 'admin') : undefined);
+        p.id === clean
+    );
 
     if (found) {
-      this.updateProfile(found.id, { online_status: 'online', last_seen: new Date().toISOString() });
-      return { success: true, profile: found };
-    }
-
-    return { success: false, error: 'Member not found. Please register or check credentials.' };
-  }
-
-  public async quickLoginUser(identifier: string): Promise<{ success: boolean; profile?: UserProfile }> {
-    try {
-      const res = await fetch('/api/auth/quick-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier }),
-      });
-      const body = await res.json();
-      if (res.ok && body.profile) {
-        this.updateProfile(body.profile.id, { online_status: 'online', last_seen: new Date().toISOString() });
-        return { success: true, profile: body.profile };
+      if (found.status === 'suspended' || found.is_active === false) {
+        return { success: false, error: 'Your account is suspended. Please contact circle management.' };
       }
-    } catch {
-      // safe
-    }
-
-    const clean = identifier.trim().toLowerCase().replace(/^@/, '');
-    const found = this.profiles.find(
-      (p) =>
-        p.email?.toLowerCase() === clean ||
-        p.username.toLowerCase() === clean ||
-        p.id === clean ||
-        (clean === 'tanvir' && p.username === 'tanvir_zim') ||
-        (clean === 'admin' && p.role === 'admin')
-    ) || this.profiles[0];
-
-    if (found) {
       this.updateProfile(found.id, { online_status: 'online', last_seen: new Date().toISOString() });
       return { success: true, profile: found };
     }
 
-    return { success: false };
+    return { success: false, error: 'Account not found with this username or email. Please verify your credentials or register.' };
   }
 
   public async logoutUser(userId: string) {
