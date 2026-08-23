@@ -10,22 +10,29 @@ import {
   KeyRound,
   AlertCircle,
   CheckCircle2,
-  Users,
+  Eye,
+  EyeOff,
+  Phone,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { store } from '../../lib/storage';
 
 export const LoginView: React.FC = () => {
-  const { login, register, resetPassword, switchUser } = useAuth();
+  const { login, register, resetPassword } = useAuth();
 
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Registration specifics
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
-  const [inviteCode, setInviteCode] = useState('FRIENDS-2026-VIP');
+  const [inviteCode, setInviteCode] = useState('CIRCLE2026');
   const [rememberMe, setRememberMe] = useState(true);
 
   const [loading, setLoading] = useState(false);
@@ -33,10 +40,12 @@ export const LoginView: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const sampleAvatars = [
+    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=400&auto=format&fit=crop&q=80',
     'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
     'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&auto=format&fit=crop&q=80',
   ];
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -44,16 +53,27 @@ export const LoginView: React.FC = () => {
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    if (!email) {
-      setErrorMsg('Please enter your email or username.');
+    const cleanId = identifier.trim();
+    if (!cleanId) {
+      setErrorMsg('Please enter your email address or username.');
+      return;
+    }
+
+    if (!password) {
+      setErrorMsg('Please enter your password.');
       return;
     }
 
     setLoading(true);
-    const res = await login(email, password);
-    setLoading(false);
-    if (!res.success) {
-      setErrorMsg(res.error || 'Failed to login');
+    try {
+      const res = await login(cleanId, password);
+      if (!res.success) {
+        setErrorMsg(res.error || 'Invalid credentials. Please verify your username and password.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Login error. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -62,34 +82,44 @@ export const LoginView: React.FC = () => {
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    if (!fullName || !username || !email || !password) {
-      setErrorMsg('Please fill in all required fields.');
-      return;
-    }
+    const cleanName = fullName.trim();
+    const cleanUser = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+    const cleanMail = email.trim().toLowerCase();
 
-    if (password !== confirmPassword) {
-      setErrorMsg('Passwords do not match.');
+    if (!cleanName || !cleanUser || !cleanMail || !password) {
+      setErrorMsg('Please fill in all required account fields.');
       return;
     }
 
     if (password.length < 6) {
-      setErrorMsg('Password must be at least 6 characters.');
+      setErrorMsg('Password must be at least 6 characters long.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMsg('Passwords do not match. Please verify your entry.');
       return;
     }
 
     setLoading(true);
-    const res = await register({
-      full_name: fullName,
-      username,
-      email,
-      password,
-      avatar_url: avatarUrl || undefined,
-      invite_code: inviteCode,
-    });
-    setLoading(false);
+    try {
+      const res = await register({
+        full_name: cleanName,
+        username: cleanUser,
+        email: cleanMail,
+        password,
+        phone: phone.trim() || undefined,
+        avatar_url: avatarUrl || sampleAvatars[0],
+        invite_code: inviteCode.trim() || undefined,
+      });
 
-    if (!res.success) {
-      setErrorMsg(res.error || 'Registration failed.');
+      if (!res.success) {
+        setErrorMsg(res.error || 'Account registration failed. Please try a different username or email.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Registration error. Please check your details.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -98,71 +128,78 @@ export const LoginView: React.FC = () => {
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    if (!email) {
-      setErrorMsg('Please enter your registered email address.');
+    const cleanMail = identifier.trim().toLowerCase();
+    if (!cleanMail || !cleanMail.includes('@')) {
+      setErrorMsg('Please enter a valid registered email address.');
       return;
     }
 
     setLoading(true);
-    const res = await resetPassword(email);
-    setLoading(false);
-
-    if (res.success) {
-      setSuccessMsg(res.message || 'Password reset link sent to your email.');
-    } else {
-      setErrorMsg(res.error || 'Unable to process reset request.');
+    try {
+      const res = await resetPassword(cleanMail);
+      if (res.success) {
+        setSuccessMsg(res.message || 'Password reset instructions have been dispatched to your email.');
+      } else {
+        setErrorMsg(res.error || 'Unable to find an account with that email.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to dispatch reset request.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const quickLogins = store.getProfiles().slice(0, 4);
-
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden">
-      {/* Background Ambience Glow */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-10 right-10 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div id="login-view-root" className="min-h-screen bg-[#050505] text-[#f0f0f0] flex flex-col justify-center items-center px-4 py-8 sm:py-12 relative overflow-x-hidden">
+      {/* Ambient background lighting */}
+      <div className="absolute top-1/6 left-1/2 -translate-x-1/2 w-80 sm:w-[32rem] h-80 sm:h-[32rem] bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-10 right-1/4 w-60 sm:w-96 h-60 sm:h-96 bg-emerald-600/5 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="w-full max-w-md relative z-10">
+      <div className="w-full max-w-md relative z-10 space-y-6">
         {/* Brand Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 shadow-xl shadow-emerald-500/20 mb-4">
-            <Compass className="w-9 h-9 text-slate-950" />
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-400 text-white shadow-xl shadow-indigo-600/20 mb-1">
+            <Compass className="w-8 h-8 sm:w-9 sm:h-9 text-white" />
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-white">FriendsHub</h1>
-          <p className="text-slate-400 text-sm mt-1.5">
-            Private Friends Community & Real-Time Location Radar
+          <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight text-white">FriendsHub</h1>
+          <p className="text-xs sm:text-sm text-zinc-400 max-w-xs mx-auto">
+            Private Friends Circle & Real-Time Location Radar
           </p>
         </div>
 
         {/* Card Container */}
-        <div className="bg-slate-900 border border-slate-800/90 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl">
-          {/* Tabs */}
+        <div className="bg-[#0a0a0a] border border-[#1f1f1f] rounded-3xl p-5 sm:p-7 shadow-2xl backdrop-blur-xl">
+          {/* Navigation Mode Switcher */}
           {mode !== 'forgot' && (
-            <div className="flex bg-slate-800/80 p-1 rounded-2xl mb-6 border border-slate-700/60">
+            <div className="flex bg-[#141414] p-1 rounded-2xl mb-5 border border-white/5">
               <button
+                id="tab-sign-in"
                 type="button"
                 onClick={() => {
                   setMode('login');
                   setErrorMsg(null);
+                  setSuccessMsg(null);
                 }}
-                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${
+                className={`flex-1 py-2.5 text-xs font-semibold rounded-xl transition-all ${
                   mode === 'login'
-                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25'
+                    : 'text-zinc-400 hover:text-zinc-200'
                 }`}
               >
                 Sign In
               </button>
               <button
+                id="tab-create-account"
                 type="button"
                 onClick={() => {
                   setMode('register');
                   setErrorMsg(null);
+                  setSuccessMsg(null);
                 }}
-                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${
+                className={`flex-1 py-2.5 text-xs font-semibold rounded-xl transition-all ${
                   mode === 'register'
-                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25'
+                    : 'text-zinc-400 hover:text-zinc-200'
                 }`}
               >
                 Create Account
@@ -170,94 +207,111 @@ export const LoginView: React.FC = () => {
             </div>
           )}
 
-          {/* Feedback messages */}
+          {/* Feedback Messages */}
           {errorMsg && (
-            <div className="mb-4 p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errorMsg}</span>
+            <div className="mb-4 p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5 animate-fadeIn">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">{errorMsg}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="mb-4 p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{successMsg}</span>
+            <div className="mb-4 p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-start gap-2.5 animate-fadeIn">
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">{successMsg}</span>
             </div>
           )}
 
-          {/* LOGIN FORM */}
+          {/* 1. LOGIN FORM */}
           {mode === 'login' && (
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                <label className="block text-xs font-medium text-zinc-300 mb-1.5">
                   Email or Username
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
                     <Mail className="w-4 h-4" />
                   </div>
                   <input
+                    id="input-login-identifier"
                     type="text"
                     required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="tanvir@friendshub.internal or tanvir"
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                    autoComplete="username"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="Enter email or username"
+                    className="w-full pl-10 pr-4 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                   />
                 </div>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-medium text-slate-300">Password</label>
+                  <label className="text-xs font-medium text-zinc-300">Password</label>
                   <button
+                    id="btn-forgot-password"
                     type="button"
                     onClick={() => {
                       setMode('forgot');
                       setErrorMsg(null);
+                      setSuccessMsg(null);
                     }}
-                    className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                    className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
                   >
-                    Forgot Password?
+                    Forgot password?
                   </button>
                 </div>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
                     <Lock className="w-4 h-4" />
                   </div>
                   <input
-                    type="password"
+                    id="input-login-password"
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                    className="w-full pl-10 pr-10 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-200"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded bg-slate-800 border-slate-700 text-emerald-500 focus:ring-emerald-500/20"
-                />
-                <label htmlFor="remember-me" className="ml-2 text-xs text-slate-400">
-                  Remember my session
+              <div className="flex items-center justify-between pt-1">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-zinc-400 select-none">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-indigo-600 focus:ring-indigo-500/20"
+                  />
+                  <span>Remember my session</span>
                 </label>
               </div>
 
               <button
+                id="btn-submit-login"
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white font-semibold text-sm shadow-lg shadow-indigo-600/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 min-h-[44px]"
               >
                 {loading ? (
-                  <span>Signing In...</span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Authenticating...
+                  </span>
                 ) : (
                   <>
-                    <span>Enter FriendsHub</span>
+                    <span>Sign In to FriendsHub</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -265,109 +319,154 @@ export const LoginView: React.FC = () => {
             </form>
           )}
 
-          {/* REGISTER FORM */}
+          {/* 2. REGISTRATION FORM */}
           {mode === 'register' && (
             <form onSubmit={handleRegister} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Full Name</label>
+                <label className="block text-xs font-medium text-zinc-300 mb-1">Full Name</label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
                     <User className="w-4 h-4" />
                   </div>
                   <input
+                    id="input-register-fullname"
                     type="text"
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="e.g. Tanvir Hasan"
-                    className="w-full pl-10 pr-4 py-2 bg-slate-800/80 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                    className="w-full pl-10 pr-4 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Username</label>
+                  <label className="block text-xs font-medium text-zinc-300 mb-1">Username</label>
                   <input
+                    id="input-register-username"
                     type="text"
                     required
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="tanvir_h"
-                    className="w-full px-3 py-2 bg-slate-800/80 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                    placeholder="tanvir_zim"
+                    className="w-full px-3 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Invite Code</label>
+                  <label className="block text-xs font-medium text-zinc-300 mb-1">Invite Code</label>
                   <input
+                    id="input-register-invite"
                     type="text"
                     value={inviteCode}
                     onChange={(e) => setInviteCode(e.target.value)}
-                    placeholder="FRIENDS-2026-VIP"
-                    className="w-full px-3 py-2 bg-slate-800/80 border border-slate-700/80 rounded-xl text-sm text-emerald-400 font-mono focus:outline-none focus:border-emerald-500"
+                    placeholder="CIRCLE2026"
+                    className="w-full px-3 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-indigo-400 font-mono focus:outline-none focus:border-indigo-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Email</label>
+                <label className="block text-xs font-medium text-zinc-300 mb-1">Email Address</label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
                     <Mail className="w-4 h-4" />
                   </div>
                   <input
+                    id="input-register-email"
                     type="email"
                     required
+                    autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@example.com"
-                    className="w-full pl-10 pr-4 py-2 bg-slate-800/80 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                    placeholder="yourname@gmail.com"
+                    className="w-full pl-10 pr-4 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Password</label>
+              <div>
+                <label className="block text-xs font-medium text-zinc-300 mb-1">Phone Number (Optional)</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
+                    <Phone className="w-4 h-4" />
+                  </div>
                   <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••"
-                    className="w-full px-3 py-2 bg-slate-800/80 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                    id="input-register-phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="+880 1712-345678"
+                    className="w-full pl-10 pr-4 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Confirm</label>
-                  <input
-                    type="password"
-                    required
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="••••••"
-                    className="w-full px-3 py-2 bg-slate-800/80 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                  />
+                  <label className="block text-xs font-medium text-zinc-300 mb-1">Create Password</label>
+                  <div className="relative">
+                    <input
+                      id="input-register-password"
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      autoComplete="new-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Min 6 chars"
+                      className="w-full pl-3 pr-8 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-zinc-400 hover:text-zinc-200"
+                    >
+                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-zinc-300 mb-1">Confirm Password</label>
+                  <div className="relative">
+                    <input
+                      id="input-register-confirm-password"
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      autoComplete="new-password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Repeat password"
+                      className="w-full pl-3 pr-8 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-zinc-400 hover:text-zinc-200"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
               {/* Avatar Preset Selector */}
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Pick Profile Photo
+                <label className="block text-xs font-medium text-zinc-300 mb-2">
+                  Select Profile Avatar
                 </label>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
                   {sampleAvatars.map((url, idx) => (
                     <img
                       key={idx}
                       src={url}
-                      alt="Avatar option"
+                      alt={`Avatar option ${idx + 1}`}
                       onClick={() => setAvatarUrl(url)}
-                      className={`w-10 h-10 rounded-full object-cover cursor-pointer transition-transform ${
-                        avatarUrl === url
-                          ? 'ring-2 ring-emerald-400 scale-105'
-                          : 'opacity-70 hover:opacity-100'
+                      className={`w-10 h-10 rounded-full object-cover cursor-pointer transition-all shrink-0 ${
+                        (avatarUrl || sampleAvatars[0]) === url
+                          ? 'ring-2 ring-indigo-500 scale-105 opacity-100'
+                          : 'opacity-60 hover:opacity-100 ring-1 ring-white/10'
                       }`}
                     />
                   ))}
@@ -375,100 +474,87 @@ export const LoginView: React.FC = () => {
               </div>
 
               <button
+                id="btn-submit-register"
                 type="submit"
                 disabled={loading}
-                className="w-full mt-2 py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full mt-3 py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white font-semibold text-sm shadow-lg shadow-indigo-600/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 min-h-[44px]"
               >
-                {loading ? 'Registering...' : 'Join FriendsHub'}
+                {loading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Creating Profile...
+                  </span>
+                ) : (
+                  <>
+                    <span>Join Friends Circle</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
             </form>
           )}
 
-          {/* FORGOT PASSWORD */}
+          {/* 3. FORGOT PASSWORD FORM */}
           {mode === 'forgot' && (
             <form onSubmit={handleForgot} className="space-y-4">
-              <div className="text-center mb-2">
-                <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center mx-auto mb-2 border border-emerald-500/20">
+              <div className="text-center mb-3">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto mb-2 border border-indigo-500/20">
                   <KeyRound className="w-6 h-6" />
                 </div>
-                <h3 className="text-base font-bold text-white">Reset Account Password</h3>
-                <p className="text-xs text-slate-400 mt-1">
+                <h3 className="text-base font-serif font-bold text-white">Reset Account Password</h3>
+                <p className="text-xs text-zinc-400 mt-1">
                   Enter your registered email address and we will dispatch password recovery instructions.
                 </p>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Email Address</label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="tanvir@friendshub.internal"
-                  className="w-full px-4 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                />
+                <label className="block text-xs font-medium text-zinc-300 mb-1.5">Registered Email</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <input
+                    id="input-forgot-email"
+                    type="email"
+                    required
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="e.g. tanvir@gmail.com"
+                    className="w-full pl-10 pr-4 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
               </div>
 
               <button
+                id="btn-submit-forgot"
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20 transition-all"
+                className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm shadow-lg shadow-indigo-600/25 transition-all min-h-[44px]"
               >
-                {loading ? 'Dispatching...' : 'Send Recovery Email'}
+                {loading ? 'Dispatching Instructions...' : 'Send Recovery Link'}
               </button>
 
               <button
+                id="btn-back-to-login"
                 type="button"
                 onClick={() => {
                   setMode('login');
                   setErrorMsg(null);
                   setSuccessMsg(null);
                 }}
-                className="w-full text-center text-xs text-slate-400 hover:text-slate-200 mt-2"
+                className="w-full text-center text-xs text-zinc-400 hover:text-zinc-200 mt-2 py-2"
               >
                 Back to Sign In
               </button>
             </form>
           )}
-
-          {/* Quick Demo Sign In Bar */}
-          <div className="mt-6 pt-5 border-t border-slate-800/80">
-            <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium mb-3">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Instant 1-Click Demo Login:</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {quickLogins.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => switchUser(p.id)}
-                  className="flex items-center gap-2 p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 text-left transition-all group"
-                >
-                  <img
-                    src={p.avatar_url}
-                    alt={p.full_name}
-                    className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-600"
-                  />
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold text-slate-200 truncate group-hover:text-emerald-400">
-                      {p.full_name.split(' ')[0]}
-                    </div>
-                    <div className="text-[10px] text-slate-400 truncate">
-                      {p.role === 'admin' ? '👑 Admin' : 'Member'}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
-        {/* Security & Privacy Notice */}
-        <p className="text-center text-[11px] text-slate-500 mt-6 flex items-center justify-center gap-1">
-          <Shield className="w-3 h-3 text-emerald-400" />
-          <span>Closed circle. Strict Row Level Security & encrypted location channels.</span>
-        </p>
+        {/* Security & Access Protection Notice */}
+        <div className="text-center text-[11px] text-zinc-500 flex items-center justify-center gap-1.5 px-4">
+          <Shield className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+          <span>Private closed circle. Secure authentication & end-to-end access control.</span>
+        </div>
       </div>
     </div>
   );

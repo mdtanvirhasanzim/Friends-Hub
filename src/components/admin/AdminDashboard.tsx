@@ -51,7 +51,7 @@ const PRESET_AVATARS = [
 ];
 
 export const AdminDashboard: React.FC = () => {
-  const { currentUser, isAdmin, switchUser } = useAuth();
+  const { currentUser, isAdmin } = useAuth();
 
   const [members, setMembers] = useState<UserProfile[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -153,8 +153,7 @@ export const AdminDashboard: React.FC = () => {
           </div>
           <h2 className="text-xl font-serif font-bold text-white">Administrator Access Required</h2>
           <p className="text-xs sm:text-sm text-zinc-400">
-            This dashboard is restricted to community administrators. You can switch to the Tanvir
-            (Admin) test persona in Settings.
+            This dashboard is restricted exclusively to authorized community administrators.
           </p>
         </div>
       </div>
@@ -1547,18 +1546,6 @@ export const AdminDashboard: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          switchUser(selectedMember.id);
-                          setSelectedMember(null);
-                        }}
-                        className="px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 text-xs font-medium border border-indigo-500/30 flex items-center gap-1"
-                        title="Switch into this persona to test"
-                      >
-                        <LogIn className="w-3.5 h-3.5" />
-                        <span>Test as User</span>
-                      </button>
-
                       <button
                         onClick={() => handleDeleteMember(selectedMember.id, selectedMember.full_name)}
                         className="p-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30"

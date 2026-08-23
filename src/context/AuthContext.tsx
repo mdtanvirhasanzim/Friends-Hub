@@ -124,18 +124,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const profiles = store.getProfiles();
 
         if (savedUserId) {
-          const found = profiles.find((p) => p.id === savedUserId && p.is_active);
+          const found = profiles.find((p) => p.id === savedUserId && p.is_active && p.status !== 'suspended');
           if (found) {
             setCurrentUser(found);
           } else {
-            setCurrentUser(profiles[0] || null);
+            localStorage.removeItem('fh_active_user_id');
+            setCurrentUser(null);
           }
         } else {
-          const defaultUser = profiles[0] || null;
-          if (defaultUser) {
-            setCurrentUser(defaultUser);
-            localStorage.setItem('fh_active_user_id', defaultUser.id);
-          }
+          setCurrentUser(null);
         }
       }
 
@@ -250,7 +247,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Fallback store login
     try {
-      const res = await store.loginUser(identifier);
+      const res = await store.loginUser(identifier, password);
       if (res.success && res.profile) {
         setCurrentUser(res.profile);
         localStorage.setItem('fh_active_user_id', res.profile.id);
@@ -258,7 +255,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: true };
       }
       setLoading(false);
-      return { success: false, error: res.error || 'Member not found. Please check your username or email.' };
+      return { success: false, error: res.error || 'Invalid email/username or password. Please try again.' };
     } catch (err: any) {
       setLoading(false);
       return { success: false, error: err.message || 'Login failed' };
@@ -366,6 +363,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         full_name: data.full_name,
         username: cleanUsername,
         email: cleanEmail,
+        password: data.password,
         avatar_url: data.avatar_url,
         bio: data.bio,
         phone: data.phone,

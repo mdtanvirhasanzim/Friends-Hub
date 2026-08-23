@@ -280,6 +280,7 @@ interface DatabaseSchema {
   settings: any;
   activity_logs: any[];
   search_logs: any[];
+  credentials: Record<string, string>;
   version: number;
 }
 
@@ -297,6 +298,17 @@ let db: DatabaseSchema = {
   settings: INITIAL_SETTINGS,
   activity_logs: INITIAL_ACTIVITY_LOGS,
   search_logs: [],
+  credentials: {
+    'mdtanvirhasanzim12@gmail.com': 'FriendsHub2026!',
+    'tanvir_zim': 'FriendsHub2026!',
+    'usr-tanvir-admin': 'FriendsHub2026!',
+    'sara.k@gmail.com': 'FriendsHub2026!',
+    'sara_k': 'FriendsHub2026!',
+    'rahim.c@gmail.com': 'FriendsHub2026!',
+    'rahim_c': 'FriendsHub2026!',
+    'anika.t@gmail.com': 'FriendsHub2026!',
+    'anika_t': 'FriendsHub2026!',
+  },
   version: 1,
 };
 
@@ -380,12 +392,16 @@ app.get('/api/sync', (req, res) => {
 
 // --- Auth Endpoints ---
 
-// 1. Register / Join New Member (from ANY phone or browser!)
+// 1. Register / Join New Member
 app.post('/api/auth/register', (req, res) => {
-  const { full_name, username, email, phone, bio, avatar_url, role, invite_code, location_sharing_enabled, address_hint, latitude, longitude } = req.body;
+  const { full_name, username, email, password, phone, bio, avatar_url, role, invite_code, location_sharing_enabled, address_hint, latitude, longitude } = req.body;
 
-  if (!full_name || !username || !email) {
-    return res.status(400).json({ error: 'Missing required profile fields.' });
+  if (!full_name || !username || !email || !password) {
+    return res.status(400).json({ error: 'Missing required profile fields (full name, username, email, and password are required).' });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters.' });
   }
 
   const cleanUsername = username.trim().toLowerCase().replace(/^@/, '').replace(/\s+/g, '');
@@ -394,16 +410,7 @@ app.post('/api/auth/register', (req, res) => {
   // Check if exists already
   const existing = db.profiles.find((p) => p.email?.toLowerCase() === cleanEmail || p.username?.toLowerCase() === cleanUsername);
   if (existing) {
-    // Update existing profile and log in
-    existing.online_status = 'online';
-    existing.last_seen = new Date().toISOString();
-    existing.updated_at = new Date().toISOString();
-    logActivity(existing.id, existing.full_name, 'login', `Logged in via registered account (@${existing.username})`, {
-      location_hint: address_hint || 'Dhaka, Bangladesh',
-      device_hint: req.headers['user-agent'],
-    });
-    saveDatabase();
-    return res.json({ profile: existing, is_existing: true });
+    return res.status(409).json({ error: 'An account with this email or username already exists. Please sign in instead.' });
   }
 
   const newId = `usr-${cleanUsername}-${Date.now().toString(36)}`;
@@ -429,6 +436,12 @@ app.post('/api/auth/register', (req, res) => {
   };
 
   db.profiles.unshift(newProfile);
+
+  // Store password credentials
+  if (!db.credentials) db.credentials = {};
+  db.credentials[cleanEmail] = password;
+  db.credentials[cleanUsername] = password;
+  db.credentials[newId] = password;
 
   // Initialize initial location on radar map
   const newLoc = {
@@ -481,35 +494,77 @@ app.post('/api/auth/register', (req, res) => {
   return res.json({ profile: newProfile, location: newLoc });
 });
 
-// 2. Login
+// 2. Login with strict password verification
 app.post('/api/auth/login', (req, res) => {
-  const { identifier, user_id, address_hint } = req.body;
+  const { identifier, password, address_hint } = req.body;
 
-  let profile = null;
-  if (user_id) {
-    profile = db.profiles.find((p) => p.id === user_id);
-  } else if (identifier) {
-    const clean = identifier.trim().toLowerCase().replace(/^@/, '');
-    profile = db.profiles.find(
-      (p) => p.username?.toLowerCase() === clean || p.email?.toLowerCase() === clean || p.id === clean
-    );
+  if (!identifier || !password) {
+    return res.status(400).json({ error: 'Please provide both your email/username and password.' });
   }
 
+  const clean = identifier.trim().toLowerCase().replace(/^@/, '');
+  const profile = db.profiles.find(
+    (p) => p.username?.toLowerCase() === clean || p.email?.toLowerCase() === clean || p.id === clean
+  );
+
   if (!profile) {
-    return res.status(404).json({ error: 'Member not found. Please register or check credentials.' });
+    return res.status(401).json({ error: 'Invalid email/username or password. Please check your credentials.' });
+  }
+
+  if (profile.status === 'suspended' || profile.is_active === false) {
+    return res.status(403).json({ error: 'Your account is suspended. Please contact the administrator.' });
+  }
+
+  // Check password
+  if (!db.credentials) db.credentials = {};
+  const storedPass = db.credentials[profile.email?.toLowerCase()] || db.credentials[profile.username?.toLowerCase()] || db.credentials[profile.id];
+
+  // Default fallback password for initial demo members if not explicitly set
+  const expectedPassword = storedPass || 'FriendsHub2026!';
+
+  if (password !== expectedPassword) {
+    return res.status(401).json({ error: 'Invalid email/username or password. Please check your credentials.' });
   }
 
   profile.online_status = 'online';
   profile.last_seen = new Date().toISOString();
   profile.updated_at = new Date().toISOString();
 
-  logActivity(profile.id, profile.full_name, 'login', `User logged in (@${profile.username})`, {
+  logActivity(profile.id, profile.full_name, 'login', `User authenticated (@${profile.username})`, {
     location_hint: address_hint || 'Dhaka, Bangladesh',
     device_hint: req.headers['user-agent'],
   });
 
   saveDatabase();
   res.json({ profile });
+});
+
+// 3. Password Reset / Change Endpoint
+app.post('/api/auth/change-password', (req, res) => {
+  const { user_id, old_password, new_password } = req.body;
+  if (!user_id || !new_password || new_password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+  }
+
+  const profile = db.profiles.find((p) => p.id === user_id);
+  if (!profile) {
+    return res.status(404).json({ error: 'User not found.' });
+  }
+
+  if (!db.credentials) db.credentials = {};
+  const currentPass = db.credentials[profile.email?.toLowerCase()] || db.credentials[profile.username?.toLowerCase()] || db.credentials[profile.id] || 'FriendsHub2026!';
+
+  if (old_password && old_password !== currentPass) {
+    return res.status(401).json({ error: 'Current password is incorrect.' });
+  }
+
+  db.credentials[profile.email?.toLowerCase()] = new_password;
+  db.credentials[profile.username?.toLowerCase()] = new_password;
+  db.credentials[profile.id] = new_password;
+
+  logActivity(profile.id, profile.full_name, 'admin_action', `Updated account password (@${profile.username})`);
+  saveDatabase();
+  res.json({ success: true, message: 'Password updated successfully.' });
 });
 
 // 3. Logout
@@ -899,6 +954,17 @@ app.post('/api/reset', (req, res) => {
     settings: INITIAL_SETTINGS,
     activity_logs: INITIAL_ACTIVITY_LOGS,
     search_logs: [],
+    credentials: {
+      'mdtanvirhasanzim12@gmail.com': 'FriendsHub2026!',
+      'tanvir_zim': 'FriendsHub2026!',
+      'usr-tanvir-admin': 'FriendsHub2026!',
+      'sara.k@gmail.com': 'FriendsHub2026!',
+      'sara_k': 'FriendsHub2026!',
+      'rahim.c@gmail.com': 'FriendsHub2026!',
+      'rahim_c': 'FriendsHub2026!',
+      'anika.t@gmail.com': 'FriendsHub2026!',
+      'anika_t': 'FriendsHub2026!',
+    },
     version: 1,
   };
   saveDatabase();

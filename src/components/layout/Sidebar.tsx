@@ -10,7 +10,6 @@ import {
   Settings,
   ShieldAlert,
   Radio,
-  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLocationContext } from '../../context/LocationContext';
@@ -23,7 +22,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
-  const { isAdmin, currentUser } = useAuth();
+  const { isAdmin } = useAuth();
   const { isSharing, toggleLocationSharing } = useLocationContext();
   const { unreadCount } = useNotifications();
 
@@ -39,9 +38,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     },
     {
       id: 'map',
-      label: 'Live Map',
+      label: 'Live Radar',
       icon: MapPin,
-      badge: `${sharingCount} Live`,
+      badge: sharingCount > 0 ? `${sharingCount} Live` : null,
       badgeColor: 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 font-mono',
       pulse: isSharing || sharingCount > 0,
     },
@@ -62,8 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
       id: 'events',
       label: 'Meetups & Events',
       icon: Calendar,
-      badge: 'Upcoming',
-      badgeColor: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
+      badge: null,
     },
     {
       id: 'notifications',
@@ -86,6 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     },
   ];
 
+  // Only append Admin Panel to navItems if authenticated user has admin role
   if (isAdmin) {
     navItems.push({
       id: 'admin',
@@ -95,6 +94,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
       badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30',
       pulse: false,
     });
+  }
+
+  // Mobile navigation items
+  const mobileNavItems = [
+    { id: 'feed', label: 'Feed', icon: Home },
+    { id: 'map', label: 'Radar', icon: MapPin, pulse: isSharing || sharingCount > 0 },
+    { id: 'friends', label: 'Friends', icon: Users },
+    { id: 'photos', label: 'Photos', icon: ImageIcon },
+    { id: 'events', label: 'Events', icon: Calendar },
+    { id: 'profile', label: 'Profile', icon: User },
+  ];
+
+  if (isAdmin) {
+    mobileNavItems.push({ id: 'admin', label: 'Admin', icon: ShieldAlert });
   }
 
   return (
@@ -155,6 +168,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-zinc-400 font-medium">Location Sharing</span>
               <button
+                id="sidebar-location-toggle"
                 onClick={() => toggleLocationSharing()}
                 className={`w-9 h-5 rounded-full relative transition-colors ${
                   isSharing ? 'bg-indigo-600' : 'bg-zinc-800 border border-white/10'
@@ -184,30 +198,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
       </aside>
 
       {/* Mobile Responsive Bottom Navigation Bar */}
-      <div
+      <nav
         id="mobile-bottom-nav"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#080808]/95 backdrop-blur-lg border-t border-[#1a1a1a] px-2 py-2 flex items-center justify-around"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#080808]/95 backdrop-blur-xl border-t border-[#1a1a1a] px-1 py-1.5 flex items-center justify-around shadow-2xl safe-area-bottom"
+        aria-label="Mobile Navigation"
       >
-        {[
-          { id: 'feed', label: 'Feed', icon: Home },
-          { id: 'map', label: 'Live Map', icon: MapPin, pulse: isSharing || sharingCount > 0 },
-          { id: 'friends', label: 'Friends', icon: Users },
-          { id: 'photos', label: 'Photos', icon: ImageIcon },
-          { id: 'events', label: 'Events', icon: Calendar },
-          { id: 'profile', label: 'Profile', icon: User },
-        ].map((item) => {
+        {mobileNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id || (item.id === 'feed' && activeTab === 'home');
           return (
             <button
               key={item.id}
+              id={`mobile-nav-${item.id}`}
               onClick={() => setActiveTab(item.id)}
-              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
+              className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl transition-all min-w-[44px] min-h-[44px] ${
                 isActive ? 'text-indigo-400 font-medium' : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
               <div className="relative">
-                <Icon className="w-5 h-5" />
+                <Icon className={`w-5 h-5 ${isActive ? 'text-indigo-400' : 'text-zinc-500'}`} />
                 {item.pulse && (
                   <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
@@ -215,11 +224,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                   </span>
                 )}
               </div>
-              <span className="text-[10px] mt-1">{item.label}</span>
+              <span className={`text-[10px] mt-0.5 leading-none ${isActive ? 'text-indigo-300 font-semibold' : 'text-zinc-500'}`}>
+                {item.label}
+              </span>
             </button>
           );
         })}
-      </div>
+      </nav>
     </>
   );
 };

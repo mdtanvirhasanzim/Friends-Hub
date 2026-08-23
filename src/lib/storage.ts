@@ -768,6 +768,7 @@ export class DataStore {
     full_name: string;
     username: string;
     email: string;
+    password?: string;
     phone?: string;
     bio?: string;
     avatar_url?: string;
@@ -824,6 +825,9 @@ export class DataStore {
         body: JSON.stringify(data),
       });
       const body = await res.json();
+      if (!res.ok) {
+        return { success: false, error: body.error || 'Registration failed.' };
+      }
       if (body.profile) {
         this.addProfile(body.profile);
         return { success: true, profile: body.profile };
@@ -836,20 +840,23 @@ export class DataStore {
     return { success: true, profile: newProfile };
   }
 
-  public async loginUser(identifier: string, address_hint?: string): Promise<{ success: boolean; profile?: UserProfile; error?: string }> {
+  public async loginUser(identifier: string, password?: string, address_hint?: string): Promise<{ success: boolean; profile?: UserProfile; error?: string }> {
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier, address_hint }),
+        body: JSON.stringify({ identifier, password, address_hint }),
       });
       const body = await res.json();
-      if (res.ok && body.profile) {
+      if (!res.ok) {
+        return { success: false, error: body.error || 'Invalid credentials.' };
+      }
+      if (body.profile) {
         this.updateProfile(body.profile.id, { online_status: 'online', last_seen: new Date().toISOString() });
         return { success: true, profile: body.profile };
       }
-    } catch {
-      // Fallback
+    } catch (err: any) {
+      console.warn('[Login Server Error]:', err);
     }
 
     const found = this.profiles.find(
@@ -859,7 +866,8 @@ export class DataStore {
       this.updateProfile(found.id, { online_status: 'online', last_seen: new Date().toISOString() });
       return { success: true, profile: found };
     }
-    return { success: false, error: 'Member not found. Please verify details.' };
+
+    return { success: false, error: 'Member not found. Please register or check credentials.' };
   }
 
   public async logoutUser(userId: string) {
