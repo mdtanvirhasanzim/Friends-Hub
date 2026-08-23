@@ -550,6 +550,27 @@ class DataStore {
     this.updateProfile(userId, { online_status: 'offline', last_seen: new Date().toISOString() });
   }
 
+  public syncOnlinePresence(onlineUserIds: string[]) {
+    let changed = false;
+    this.profiles = this.profiles.map((p) => {
+      const isOnline = onlineUserIds.includes(p.id);
+      const newStatus = isOnline ? 'online' : 'offline';
+      if (p.online_status !== newStatus) {
+        changed = true;
+        return {
+          ...p,
+          online_status: newStatus,
+          last_seen: isOnline ? new Date().toISOString() : p.last_seen,
+        };
+      }
+      return p;
+    });
+    if (changed) {
+      this.saveToStorage('fh_profiles', this.profiles);
+      this.notify();
+    }
+  }
+
   // --- Profiles ---
   public getProfiles(): UserProfile[] {
     return this.profiles;
