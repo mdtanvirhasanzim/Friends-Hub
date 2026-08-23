@@ -13,15 +13,16 @@ import {
   Eye,
   EyeOff,
   Phone,
+  Zap,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export const LoginView: React.FC = () => {
-  const { login, register, resetPassword } = useAuth();
+  const { login, quickLogin, register, resetPassword } = useAuth();
 
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
+  const [identifier, setIdentifier] = useState('mdtanvirhasanzim12@gmail.com');
+  const [password, setPassword] = useState('FriendsHub2026!');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -48,8 +49,55 @@ export const LoginView: React.FC = () => {
     'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&auto=format&fit=crop&q=80',
   ];
 
+  const quickAccounts = [
+    {
+      id: 'usr-tanvir-admin',
+      name: 'Tanvir Hasan Zim',
+      handle: 'tanvir_zim',
+      email: 'mdtanvirhasanzim12@gmail.com',
+      role: 'Organizer & Admin',
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop&q=80',
+    },
+    {
+      id: 'usr-sara-khan',
+      name: 'Sara Khan',
+      handle: 'sara_k',
+      email: 'sara.k@gmail.com',
+      role: 'Member (Gulshan)',
+      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80',
+    },
+    {
+      id: 'usr-rahim-chowdhury',
+      name: 'Rahim Chowdhury',
+      handle: 'rahim_c',
+      email: 'rahim.c@gmail.com',
+      role: 'Member (Agargaon)',
+      avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=400&auto=format&fit=crop&q=80',
+    },
+  ];
+
+  const handleInstantSignIn = async (userEmailOrId: string) => {
+    setErrorMsg(null);
+    setLoading(true);
+    try {
+      const res = await quickLogin(userEmailOrId);
+      if (!res.success) {
+        // Try fallback login with default password
+        const fallbackRes = await login(userEmailOrId, 'FriendsHub2026!');
+        if (!fallbackRes.success) {
+          setErrorMsg(fallbackRes.error || 'Authentication error. Please try again.');
+        }
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Login error.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setErrorMsg(null);
     setSuccessMsg(null);
 
@@ -79,6 +127,7 @@ export const LoginView: React.FC = () => {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setErrorMsg(null);
     setSuccessMsg(null);
 
@@ -125,6 +174,7 @@ export const LoginView: React.FC = () => {
 
   const handleForgot = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setErrorMsg(null);
     setSuccessMsg(null);
 
@@ -155,7 +205,7 @@ export const LoginView: React.FC = () => {
       <div className="absolute top-1/6 left-1/2 -translate-x-1/2 w-80 sm:w-[32rem] h-80 sm:h-[32rem] bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-10 right-1/4 w-60 sm:w-96 h-60 sm:h-96 bg-emerald-600/5 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="w-full max-w-md relative z-10 space-y-6">
+      <div className="w-full max-w-md relative z-10 space-y-5">
         {/* Brand Header */}
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-400 text-white shadow-xl shadow-indigo-600/20 mb-1">
@@ -224,99 +274,146 @@ export const LoginView: React.FC = () => {
 
           {/* 1. LOGIN FORM */}
           {mode === 'login' && (
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                  Email or Username
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
-                    <Mail className="w-4 h-4" />
+            <div className="space-y-4">
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-medium text-zinc-300">
+                      Email or Username
+                    </label>
                   </div>
-                  <input
-                    id="input-login-identifier"
-                    type="text"
-                    required
-                    autoComplete="username"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="Enter email or username"
-                    className="w-full pl-10 pr-4 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-medium text-zinc-300">Password</label>
-                  <button
-                    id="btn-forgot-password"
-                    type="button"
-                    onClick={() => {
-                      setMode('forgot');
-                      setErrorMsg(null);
-                      setSuccessMsg(null);
-                    }}
-                    className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-                  >
-                    Forgot password?
-                  </button>
-                </div>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
-                    <Lock className="w-4 h-4" />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <input
+                      id="input-login-identifier"
+                      type="text"
+                      required
+                      autoComplete="username"
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
+                      placeholder="mdtanvirhasanzim12@gmail.com"
+                      className="w-full pl-10 pr-4 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                    />
                   </div>
-                  <input
-                    id="input-login-password"
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full pl-10 pr-10 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-200"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
                 </div>
-              </div>
 
-              <div className="flex items-center justify-between pt-1">
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-zinc-400 select-none">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-indigo-600 focus:ring-indigo-500/20"
-                  />
-                  <span>Remember my session</span>
-                </label>
-              </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-medium text-zinc-300">Password</label>
+                    <button
+                      id="btn-forgot-password"
+                      type="button"
+                      onClick={() => {
+                        setMode('forgot');
+                        setErrorMsg(null);
+                        setSuccessMsg(null);
+                      }}
+                      className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <input
+                      id="input-login-password"
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full pl-10 pr-10 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-200"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
 
-              <button
-                id="btn-submit-login"
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white font-semibold text-sm shadow-lg shadow-indigo-600/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 min-h-[44px]"
-              >
-                {loading ? (
-                  <span className="inline-flex items-center gap-2">
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Authenticating...
+                <div className="flex items-center justify-between pt-0.5">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs text-zinc-400 select-none">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-indigo-600 focus:ring-indigo-500/20"
+                    />
+                    <span>Remember session</span>
+                  </label>
+                  <span className="text-[11px] text-zinc-500">Default pass: FriendsHub2026!</span>
+                </div>
+
+                <button
+                  id="btn-submit-login"
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white font-semibold text-sm shadow-lg shadow-indigo-600/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 min-h-[44px]"
+                >
+                  {loading ? (
+                    <span className="inline-flex items-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Authenticating...
+                    </span>
+                  ) : (
+                    <>
+                      <span>Sign In to FriendsHub</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {/* Quick 1-Click Access for Primary Accounts */}
+              <div className="pt-3 border-t border-white/5 space-y-2">
+                <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                  <span className="flex items-center gap-1 font-medium text-zinc-300">
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    Instant 1-Click Access
                   </span>
-                ) : (
-                  <>
-                    <span>Sign In to FriendsHub</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </form>
+                  <span className="text-zinc-500">No typing needed</span>
+                </div>
+                <div className="space-y-1.5">
+                  {quickAccounts.map((acc) => (
+                    <button
+                      key={acc.id}
+                      id={`btn-quick-login-${acc.handle}`}
+                      type="button"
+                      disabled={loading}
+                      onClick={() => handleInstantSignIn(acc.id)}
+                      className="w-full p-2 rounded-xl bg-[#141414] hover:bg-[#1c1c1c] border border-white/5 hover:border-indigo-500/40 transition-all flex items-center justify-between text-left group"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <img
+                          src={acc.avatar}
+                          alt={acc.name}
+                          className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-white/10"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-zinc-200 group-hover:text-white truncate">
+                            {acc.name}
+                          </p>
+                          <p className="text-[10px] text-zinc-500 truncate">
+                            {acc.email} • {acc.role}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-medium text-indigo-400 group-hover:text-indigo-300 shrink-0 ml-2">
+                        Enter &rarr;
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
 
           {/* 2. REGISTRATION FORM */}
