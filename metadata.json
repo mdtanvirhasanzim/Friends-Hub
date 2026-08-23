@@ -1,0 +1,6 @@
+{
+  "name": "FriendsHub",
+  "description": "A private community platform for friends with real-time location sharing, photo albums, events, and community feeds.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
