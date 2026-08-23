@@ -465,6 +465,7 @@ class DataStore {
   private events: CommunityEvent[];
   private notifications: NotificationItem[];
   private reports: ReportItem[];
+  private invitations: Invitation[];
   private settings: CommunitySettings;
   private listeners: Set<() => void> = new Set();
 
@@ -477,6 +478,7 @@ class DataStore {
     this.events = this.loadFromStorage('fh_events', INITIAL_EVENTS);
     this.notifications = this.loadFromStorage('fh_notifications', INITIAL_NOTIFICATIONS);
     this.reports = this.loadFromStorage('fh_reports', []);
+    this.invitations = this.loadFromStorage('fh_invitations', []);
     this.settings = this.loadFromStorage('fh_settings', INITIAL_SETTINGS);
   }
 
@@ -534,9 +536,31 @@ class DataStore {
   }
 
   public addProfile(profile: UserProfile): UserProfile {
-    this.profiles = [profile, ...this.profiles];
+    const is_active = profile.is_active !== undefined ? profile.is_active : true;
+    const status = profile.status || (is_active ? 'active' : 'suspended');
+    const fullProfile: UserProfile = {
+      ...profile,
+      is_active,
+      status,
+      created_at: profile.created_at || new Date().toISOString(),
+      updated_at: profile.updated_at || new Date().toISOString(),
+    };
+    this.profiles = [fullProfile, ...this.profiles];
     this.saveToStorage('fh_profiles', this.profiles);
-    return profile;
+
+    // Provide initial GPS position if not already present
+    if (!this.locations.some((l) => l.user_id === fullProfile.id)) {
+      this.updateLocation(fullProfile.id, {
+        latitude: 23.7461 + (Math.random() - 0.5) * 0.04,
+        longitude: 90.3742 + (Math.random() - 0.5) * 0.04,
+        is_sharing: fullProfile.location_sharing_enabled ?? true,
+        address_hint: 'Dhaka Metropolitan, Bangladesh',
+        activity: 'stationary',
+        battery_level: 88,
+      });
+    }
+
+    return fullProfile;
   }
 
   public deleteProfile(id: string) {
@@ -905,6 +929,10 @@ class DataStore {
   }
 
   // --- Invitations ---
+  public getInvites(): Invitation[] {
+    return this.invitations;
+  }
+
   public createInvite(creatorId: string, email?: string, role: 'member' | 'admin' = 'member'): Invitation {
     const invite: Invitation = {
       id: `inv-${Date.now()}`,
@@ -916,7 +944,21 @@ class DataStore {
       created_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     };
+    this.invitations = [invite, ...this.invitations];
+    this.saveToStorage('fh_invitations', this.invitations);
     return invite;
+  }
+
+  public deleteInvite(inviteId: string) {
+    this.invitations = this.invitations.filter((i) => i.id !== inviteId);
+    this.saveToStorage('fh_invitations', this.invitations);
+  }
+
+  public markInviteUsed(code: string, userId: string) {
+    this.invitations = this.invitations.map((i) =>
+      i.code === code ? { ...i, is_used: true, used_by: userId, used_at: new Date().toISOString() } : i
+    );
+    this.saveToStorage('fh_invitations', this.invitations);
   }
 
   // --- Settings ---
@@ -940,6 +982,7 @@ class DataStore {
     this.events = INITIAL_EVENTS;
     this.notifications = INITIAL_NOTIFICATIONS;
     this.reports = [];
+    this.invitations = [];
     this.settings = INITIAL_SETTINGS;
 
     localStorage.removeItem('fh_profiles');
@@ -950,6 +993,7 @@ class DataStore {
     localStorage.removeItem('fh_events');
     localStorage.removeItem('fh_notifications');
     localStorage.removeItem('fh_reports');
+    localStorage.removeItem('fh_invitations');
     localStorage.removeItem('fh_settings');
 
     this.notify();

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Radio,
   Shield,
@@ -16,11 +16,13 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useLocationContext } from '../../context/LocationContext';
 import { store } from '../../lib/storage';
+import { UserProfile } from '../../types';
 
 export const SettingsView: React.FC = () => {
   const { currentUser, updateCurrentUser, logout, switchUser, isSupabaseConnected } = useAuth();
   const { isSharing, toggleLocationSharing, permissionStatus } = useLocationContext();
 
+  const [allProfiles, setAllProfiles] = useState<UserProfile[]>(store.getProfiles());
   const [privacyMode, setPrivacyMode] = useState<'exact' | 'approximate'>(
     currentUser?.privacy_mode || 'exact'
   );
@@ -31,6 +33,15 @@ export const SettingsView: React.FC = () => {
 
   const [resetSuccess, setResetSuccess] = useState(false);
   const [saveSettingsSuccess, setSaveSettingsSuccess] = useState(false);
+
+  useEffect(() => {
+    const refresh = () => {
+      setAllProfiles(store.getProfiles());
+    };
+    refresh();
+    const unsub = store.subscribe(refresh);
+    return () => unsub();
+  }, []);
 
   const handlePrivacyModeChange = (mode: 'exact' | 'approximate') => {
     setPrivacyMode(mode);
@@ -48,8 +59,6 @@ export const SettingsView: React.FC = () => {
       setTimeout(() => setResetSuccess(false), 2500);
     }
   };
-
-  const allProfiles = store.getProfiles();
 
   return (
     <div id="settings-view" className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6">
