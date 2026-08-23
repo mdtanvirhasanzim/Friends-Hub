@@ -71,6 +71,27 @@ export const LiveMap: React.FC<LiveMapProps> = ({ onOpenProfile, selectedEventId
     return () => unsub();
   }, []);
 
+  // Search logging with debounce
+  useEffect(() => {
+    if (!searchQuery.trim() || searchQuery.trim().length < 2) return;
+    const timer = setTimeout(() => {
+      const matchCount = friendsLocations.filter((f) =>
+        f.user_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        f.address_hint?.toLowerCase().includes(searchQuery.toLowerCase())
+      ).length;
+
+      store.logSearch({
+        user_id: currentUser?.id || 'anonymous',
+        user_name: currentUser?.full_name || 'Anonymous User',
+        query: searchQuery.trim(),
+        category: 'places',
+        results_count: matchCount,
+      });
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, currentUser?.id, currentUser?.full_name, friendsLocations]);
+
   // Initialize Leaflet Map
   useEffect(() => {
     if (!mapContainerRef.current) return;

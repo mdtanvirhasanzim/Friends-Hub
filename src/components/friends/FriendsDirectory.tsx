@@ -52,6 +52,28 @@ export const FriendsDirectory: React.FC<FriendsDirectoryProps> = ({
     return () => unsub();
   }, []);
 
+  // Search logging with debounce
+  useEffect(() => {
+    if (!searchQuery.trim() || searchQuery.trim().length < 2) return;
+    const timer = setTimeout(() => {
+      const matchCount = profiles.filter((p) =>
+        p.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.bio?.toLowerCase().includes(searchQuery.toLowerCase())
+      ).length;
+
+      store.logSearch({
+        user_id: currentUser?.id || 'anonymous',
+        user_name: currentUser?.full_name || 'Anonymous User',
+        query: searchQuery.trim(),
+        category: 'friends',
+        results_count: matchCount,
+      });
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, currentUser?.id, currentUser?.full_name, profiles]);
+
   // Open modal if selectedUserId prop changed
   useEffect(() => {
     if (selectedUserId) {

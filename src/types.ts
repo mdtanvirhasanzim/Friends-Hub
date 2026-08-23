@@ -150,8 +150,40 @@ export interface Invitation {
   email?: string;
   role: 'member' | 'admin';
   is_used: boolean;
+  used_by?: string;
+  used_at?: string;
   created_at: string;
   expires_at: string;
+}
+
+export interface ActivityLog {
+  id: string;
+  user_id: string;
+  user_name: string;
+  action: 'login' | 'logout' | 'register' | 'add_member' | 'search' | 'create_post' | 'upload_photo' | 'update_location' | 'profile_updated' | 'admin_action' | string;
+  details: string;
+  ip_hint?: string;
+  ip?: string;
+  device_hint?: string;
+  device?: string;
+  location_hint?: string;
+  timestamp: string;
+  created_at?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface SearchLog {
+  id: string;
+  user_id: string;
+  user_name: string;
+  query: string;
+  category: 'friends' | 'posts' | 'events' | 'photos' | 'places' | 'global' | string;
+  result_count?: number;
+  results_count?: number;
+  timestamp: string;
+  created_at?: string;
+  ip?: string;
+  device?: string;
 }
 
 export interface CommunitySettings {

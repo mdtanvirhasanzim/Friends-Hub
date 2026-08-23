@@ -68,75 +68,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, _password?: string): Promise<{ success: boolean; error?: string }> => {
     setLoading(true);
     try {
-      if (isSupabaseConfigured && supabase) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password: _password || 'password123',
-        });
-        if (error) {
-          // Check if fallback to local profile matches
-          const localMatch = store.getProfiles().find(
-            (p) => p.email.toLowerCase() === email.toLowerCase() && p.is_active
-          );
-          if (localMatch) {
-            setCurrentUser(localMatch);
-            localStorage.setItem('fh_active_user_id', localMatch.id);
-            setLoading(false);
-            return { success: true };
-          }
-          setLoading(false);
-          return { success: false, error: error.message };
-        }
-        if (data.user) {
-          let profile = store.getProfile(data.user.id);
-          if (!profile) {
-            profile = store.addProfile({
-              id: data.user.id,
-              email: data.user.email || email,
-              username: email.split('@')[0],
-              full_name: data.user.user_metadata?.full_name || email.split('@')[0],
-              role: 'member',
-              is_active: true,
-              location_sharing_enabled: false,
-              privacy_mode: 'exact',
-              online_status: 'online',
-              last_seen: new Date().toISOString(),
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            });
-          }
-          setCurrentUser(profile);
-          localStorage.setItem('fh_active_user_id', profile.id);
-          setLoading(false);
-          return { success: true };
-        }
-      }
-
-      // Local store authentication logic
-      const profile = store.getProfiles().find(
-        (p) => p.email.toLowerCase() === email.toLowerCase() || p.username.toLowerCase() === email.toLowerCase()
-      );
-
-      if (!profile) {
+      const res = await store.loginUser(email);
+      if (res.success && res.profile) {
+        setCurrentUser(res.profile);
+        localStorage.setItem('fh_active_user_id', res.profile.id);
         setLoading(false);
-        return { success: false, error: 'Member not found. Please verify your email or username.' };
-      }
-
-      if (!profile.is_active) {
+        return { success: true };
+      } else {
         setLoading(false);
-        return { success: false, error: 'Your account has been deactivated by community administrators.' };
+        return { success: false, error: res.error || 'Member not found. Please verify your email or username.' };
       }
-
-      // Update last seen and online
-      const updated = store.updateProfile(profile.id, {
-        online_status: 'online',
-        last_seen: new Date().toISOString(),
-      });
-
-      setCurrentUser(updated);
-      localStorage.setItem('fh_active_user_id', updated.id);
-      setLoading(false);
-      return { success: true };
     } catch (err: any) {
       setLoading(false);
       return { success: false, error: err.message || 'Authentication failed' };
@@ -162,47 +103,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
       }
 
-      // Check existing email/username
-      const existing = store.getProfiles().find(
-        (p) =>
-          p.email.toLowerCase() === data.email.toLowerCase() ||
-          p.username.toLowerCase() === data.username.toLowerCase()
-      );
+      const res = await store.registerUser({
+        full_name: data.full_name,
+        username: data.username,
+        email: data.email,
+        avatar_url: data.avatar_url,
+        invite_code: data.invite_code,
+        role: 'member',
+        location_sharing_enabled: true,
+      });
 
-      if (existing) {
+      if (!res.success || !res.profile) {
         setLoading(false);
-        return { success: false, error: 'An account with this email or username already exists.' };
+        return { success: false, error: res.error || 'Registration failed' };
       }
 
-      const newId = `usr-${Date.now()}`;
-      const defaultAvatar =
-        data.avatar_url ||
-        `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(data.username)}`;
+      setCurrentUser(res.profile);
+      localStorage.setItem('fh_active_user_id', res.profile.id);
 
-      const newProfile: UserProfile = {
-        id: newId,
-        email: data.email,
-        username: data.username.toLowerCase().replace(/[^a-z0-9_]/g, ''),
-        full_name: data.full_name,
-        avatar_url: defaultAvatar,
-        role: 'member',
-        is_active: true,
-        location_sharing_enabled: false, // OFF by default as required
-        privacy_mode: 'exact',
-        online_status: 'online',
-        last_seen: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      store.addProfile(newProfile);
-      setCurrentUser(newProfile);
-      localStorage.setItem('fh_active_user_id', newId);
-
-      // Create community announcement
+      // Create community greeting post
       store.createPost({
-        user_id: newId,
-        content: `👋 Hey everyone! I just joined FriendsHub. Excited to connect with you all!`,
+        user_id: res.profile.id,
+        content: `👋 Hey everyone! I just joined FriendsHub from my device. Excited to connect with you all!`,
         post_type: 'post',
       });
 
@@ -216,10 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     if (currentUser) {
-      store.updateProfile(currentUser.id, {
-        online_status: 'offline',
-        last_seen: new Date().toISOString(),
-      });
+      store.logoutUser(currentUser.id);
     }
     localStorage.removeItem('fh_active_user_id');
     setCurrentUser(null);

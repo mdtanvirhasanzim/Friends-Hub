@@ -11,479 +11,319 @@ import {
   Invitation,
   CommunitySettings,
   RSVPStatus,
+  ActivityLog,
+  SearchLog,
 } from '../types';
-import { supabase, isSupabaseConfigured } from './supabase';
 
 const INITIAL_PROFILES: UserProfile[] = [
   {
     id: 'usr-admin-tanvir',
-    email: 'tanvir@friendshub.internal',
-    username: 'tanvir',
-    full_name: 'Tanvir Hasan',
-    avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-    bio: 'Founder of FriendsHub. Photography enthusiast, cafe hopper & tech geek ☕📸',
+    email: 'mdtanvirhasanzim12@gmail.com',
+    username: 'tanvir_zim',
+    full_name: 'Tanvir Hasan Zim',
+    avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop&q=80',
+    bio: 'Founder & Circle Organizer 🚀 Building our community hub.',
     role: 'admin',
     is_active: true,
+    status: 'active',
     location_sharing_enabled: true,
     privacy_mode: 'exact',
     online_status: 'online',
     last_seen: new Date().toISOString(),
-    created_at: '2026-01-10T10:00:00Z',
+    created_at: '2026-01-01T00:00:00Z',
     updated_at: new Date().toISOString(),
-    phone: '+880 1711-000001',
+    phone: '+880 1712-345678',
   },
   {
-    id: 'usr-rahim',
-    email: 'rahim@friendshub.internal',
-    username: 'rahim',
-    full_name: 'Rahim Chowdhury',
-    avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80',
-    bio: 'Always down for late-night coffee meetups and weekend drives 🚗💨',
-    role: 'member',
-    is_active: true,
-    location_sharing_enabled: true,
-    privacy_mode: 'exact',
-    online_status: 'online',
-    last_seen: new Date().toISOString(),
-    created_at: '2026-01-12T14:00:00Z',
-    updated_at: new Date().toISOString(),
-    phone: '+880 1711-000002',
-  },
-  {
-    id: 'usr-saimon',
-    email: 'saimon@friendshub.internal',
-    username: 'saimon',
-    full_name: 'Saimon Ahmed',
-    avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80',
-    bio: 'Fullstack coder, football fanatic & foodie explorer ⚽🍕',
-    role: 'member',
-    is_active: true,
-    location_sharing_enabled: true,
-    privacy_mode: 'exact',
-    online_status: 'online',
-    last_seen: new Date().toISOString(),
-    created_at: '2026-01-15T09:30:00Z',
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'usr-fahim',
-    email: 'fahim@friendshub.internal',
-    username: 'fahim',
-    full_name: 'Fahim Karim',
-    avatar_url: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=400&auto=format&fit=crop&q=80',
-    bio: 'Graphic designer & anime lover. Let us make memories! 🎨✨',
-    role: 'member',
-    is_active: true,
-    location_sharing_enabled: false,
-    privacy_mode: 'approximate',
-    online_status: 'away',
-    last_seen: new Date(Date.now() - 3600 * 1000 * 2).toISOString(),
-    created_at: '2026-01-20T11:15:00Z',
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'usr-ayesha',
-    email: 'ayesha@friendshub.internal',
-    username: 'ayesha',
-    full_name: 'Ayesha Siddiqua',
+    id: 'usr-sara-khan',
+    email: 'sara.k@gmail.com',
+    username: 'sara_k',
+    full_name: 'Sara Khan',
     avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80',
-    bio: 'Bookworm, baker & roadtrip planner. Currently hunting for the best cappuccino! 📚🧁',
+    bio: 'Photography & Coffee Enthusiast ☕ Living in Gulshan.',
     role: 'member',
     is_active: true,
+    status: 'active',
     location_sharing_enabled: true,
     privacy_mode: 'exact',
     online_status: 'online',
     last_seen: new Date().toISOString(),
-    created_at: '2026-02-01T08:00:00Z',
+    created_at: '2026-01-05T00:00:00Z',
     updated_at: new Date().toISOString(),
+    phone: '+880 1823-456789',
   },
   {
-    id: 'usr-priya',
-    email: 'priya@friendshub.internal',
-    username: 'priya',
-    full_name: 'Priya Roy',
-    avatar_url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&auto=format&fit=crop&q=80',
-    bio: 'Wildlife photography & hiking trails enthusiast 🌿🏕️',
+    id: 'usr-rahim-chowdhury',
+    email: 'rahim.c@gmail.com',
+    username: 'rahim_c',
+    full_name: 'Rahim Chowdhury',
+    avatar_url: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=400&auto=format&fit=crop&q=80',
+    bio: 'Tech lead & Weekend Cyclist 🚴',
     role: 'member',
     is_active: true,
+    status: 'active',
     location_sharing_enabled: true,
     privacy_mode: 'exact',
-    online_status: 'offline',
-    last_seen: new Date(Date.now() - 3600 * 1000 * 5).toISOString(),
-    created_at: '2026-02-05T12:00:00Z',
+    online_status: 'away',
+    last_seen: new Date().toISOString(),
+    created_at: '2026-01-10T00:00:00Z',
     updated_at: new Date().toISOString(),
+    phone: '+880 1934-567890',
+  },
+  {
+    id: 'usr-anika-tabassum',
+    email: 'anika.t@gmail.com',
+    username: 'anika_t',
+    full_name: 'Anika Tabassum',
+    avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+    bio: 'Architect, UI designer and tea lover 🎨',
+    role: 'member',
+    is_active: true,
+    status: 'active',
+    location_sharing_enabled: true,
+    privacy_mode: 'exact',
+    online_status: 'online',
+    last_seen: new Date().toISOString(),
+    created_at: '2026-01-12T00:00:00Z',
+    updated_at: new Date().toISOString(),
+    phone: '+880 1645-678901',
   },
 ];
 
-// Initial realistic locations (Centered around vibrant Dhaka / Central districts)
 const INITIAL_LOCATIONS: UserLocation[] = [
   {
+    id: 'loc-1',
     user_id: 'usr-admin-tanvir',
     latitude: 23.7461,
     longitude: 90.3742,
     accuracy: 8,
-    heading: 45,
+    heading: 90,
     speed: 0,
-    battery_level: 92,
+    battery_level: 95,
     activity: 'stationary',
-    address_hint: 'Dhanmondi Lake Cafe, Dhaka',
+    address_hint: 'Dhanmondi Lake Park, Dhaka',
     is_sharing: true,
     updated_at: new Date().toISOString(),
   },
   {
-    user_id: 'usr-rahim',
+    id: 'loc-2',
+    user_id: 'usr-sara-khan',
     latitude: 23.7925,
     longitude: 90.4078,
     accuracy: 12,
     heading: 180,
-    speed: 4.2,
-    battery_level: 78,
+    speed: 1.2,
+    battery_level: 82,
     activity: 'walking',
     address_hint: 'Gulshan 2 Avenue, Dhaka',
     is_sharing: true,
-    updated_at: new Date(Date.now() - 45 * 1000).toISOString(),
+    updated_at: new Date().toISOString(),
   },
   {
-    user_id: 'usr-saimon',
-    latitude: 23.7937,
-    longitude: 90.4043,
+    id: 'loc-3',
+    user_id: 'usr-rahim-chowdhury',
+    latitude: 23.7781,
+    longitude: 90.3802,
     accuracy: 15,
-    heading: 90,
-    speed: 8.5,
+    heading: 270,
+    speed: 5.4,
     battery_level: 64,
-    activity: 'driving',
-    address_hint: 'Banani Road 11, Dhaka',
+    activity: 'cycling',
+    address_hint: 'Agargaon Eco Road, Dhaka',
     is_sharing: true,
-    updated_at: new Date(Date.now() - 120 * 1000).toISOString(),
+    updated_at: new Date().toISOString(),
   },
   {
-    user_id: 'usr-ayesha',
-    latitude: 23.7509,
-    longitude: 90.3934,
-    accuracy: 10,
-    heading: null,
+    id: 'loc-4',
+    user_id: 'usr-anika-tabassum',
+    latitude: 23.7533,
+    longitude: 90.3921,
+    accuracy: 6,
+    heading: 0,
     speed: 0,
-    battery_level: 85,
+    battery_level: 91,
     activity: 'stationary',
-    address_hint: 'Pan Pacific Lounge, Karwan Bazar',
+    address_hint: 'Panthapath Central Plaza, Dhaka',
     is_sharing: true,
-    updated_at: new Date(Date.now() - 90 * 1000).toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+
+const INITIAL_POSTS: Post[] = [
+  {
+    id: 'post-1',
+    user_id: 'usr-admin-tanvir',
+    content: 'Welcome to FriendsHub! 🎉 Our central circle platform is active for all friends across every phone and device. Check the live radar map, share meetups, and drop photos!',
+    images: ['https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=1200&auto=format&fit=crop&q=80'],
+    location_name: 'Dhanmondi, Dhaka',
+    post_type: 'announcement',
+    created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
+    updated_at: new Date(Date.now() - 3600000 * 4).toISOString(),
+    likes: [{ id: 'like-1', post_id: 'post-1', user_id: 'usr-sara-khan', created_at: new Date().toISOString() }],
+    comments: [
+      {
+        id: 'comm-1',
+        post_id: 'post-1',
+        user_id: 'usr-sara-khan',
+        content: 'Looks awesome Tanvir! Love the real-time radar integration 🗺️',
+        created_at: new Date(Date.now() - 3600000 * 3).toISOString(),
+      },
+    ],
+    is_pinned: true,
   },
   {
-    user_id: 'usr-priya',
-    latitude: 23.8759,
-    longitude: 90.3795,
-    accuracy: 25,
-    heading: null,
-    speed: 0,
-    battery_level: 45,
-    activity: 'stationary',
-    address_hint: 'Sector 4 Park, Uttara',
-    is_sharing: true,
-    updated_at: new Date(Date.now() - 3600 * 1000 * 3).toISOString(),
+    id: 'post-2',
+    user_id: 'usr-sara-khan',
+    content: 'Sunset coffee vibes at Gulshan. Anyone nearby for a quick espresso break? ☕🌅',
+    images: ['https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=1200&auto=format&fit=crop&q=80'],
+    location_name: 'Gulshan 2, Dhaka',
+    post_type: 'photo_upload',
+    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+    updated_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+    likes: [
+      { id: 'like-2', post_id: 'post-2', user_id: 'usr-admin-tanvir', created_at: new Date().toISOString() },
+      { id: 'like-3', post_id: 'post-2', user_id: 'usr-rahim-chowdhury', created_at: new Date().toISOString() },
+    ],
+    comments: [],
   },
 ];
 
 const INITIAL_ALBUMS: Album[] = [
   {
     id: 'alb-1',
-    title: 'Friends Trip to Sylhet',
-    description: 'Tea gardens, Ratargul swamp forest and endless memories!',
-    cover_url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&auto=format&fit=crop&q=80',
-    created_by: 'usr-admin-tanvir',
-    created_at: '2026-01-28T16:00:00Z',
-    photo_count: 5,
-  },
-  {
-    id: 'alb-2',
-    title: 'Friday Meetups & Cafe Crawls',
-    description: 'All our weekend hangout sessions, food tasting & debates.',
-    cover_url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&auto=format&fit=crop&q=80',
-    created_by: 'usr-rahim',
-    created_at: '2026-02-04T18:30:00Z',
-    photo_count: 4,
-  },
-  {
-    id: 'alb-3',
-    title: 'University Reunion',
-    description: 'Reconnecting after 2 years. Feels like yesterday!',
-    cover_url: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop&q=80',
-    created_by: 'usr-saimon',
-    created_at: '2026-02-12T10:00:00Z',
-    photo_count: 3,
-  },
-  {
-    id: 'alb-4',
-    title: 'Birthday Celebrations',
-    description: 'Surprise parties, cake cuts and celebration shots 🎂🎉',
-    cover_url: 'https://images.unsplash.com/photo-1464349095431-e9a21285b5f3?w=800&auto=format&fit=crop&q=80',
-    created_by: 'usr-ayesha',
-    created_at: '2026-02-18T19:00:00Z',
-    photo_count: 3,
-  },
-  {
-    id: 'alb-5',
-    title: 'Random Moments',
-    description: 'Candid snapshots, funny faces and daily life with the gang.',
+    title: 'Circle Hangouts & Meetups',
+    description: 'Moments captured across Dhaka with friends',
     cover_url: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&auto=format&fit=crop&q=80',
     created_by: 'usr-admin-tanvir',
-    created_at: '2026-02-20T12:00:00Z',
-    photo_count: 4,
+    created_at: '2026-01-10T10:00:00Z',
+    photo_count: 2,
   },
 ];
 
 const INITIAL_PHOTOS: Photo[] = [
   {
-    id: 'p-1',
+    id: 'ph-1',
     album_id: 'alb-1',
     user_id: 'usr-admin-tanvir',
-    title: 'Ratargul Rainforest boat ride',
-    description: 'Green canopy and mirror reflections everywhere.',
-    image_url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=1000&auto=format&fit=crop&q=80',
-    location_name: 'Ratargul Swamp Forest',
-    created_at: '2026-01-28T17:00:00Z',
+    title: 'Friendship Memories 2026',
+    description: 'First meetup celebration with the crew',
+    image_url: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=1200&auto=format&fit=crop&q=80',
+    location_name: 'Dhanmondi, Dhaka',
+    created_at: new Date().toISOString(),
   },
   {
-    id: 'p-2',
+    id: 'ph-2',
     album_id: 'alb-1',
-    user_id: 'usr-admin-tanvir',
-    title: 'Sunset over Jaflong stones',
-    description: 'Golden hour at its peak with the mountains in view.',
-    image_url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1000&auto=format&fit=crop&q=80',
-    location_name: 'Jaflong, Sylhet',
-    created_at: '2026-01-29T18:20:00Z',
-  },
-  {
-    id: 'p-3',
-    album_id: 'alb-2',
-    user_id: 'usr-rahim',
-    title: 'Freshly roasted cold brews & pastry',
-    description: 'Starting the weekend with good vibes and discussions.',
-    image_url: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=1000&auto=format&fit=crop&q=80',
-    location_name: 'North End Coffee Roasters',
-    created_at: '2026-02-04T19:00:00Z',
-  },
-  {
-    id: 'p-4',
-    album_id: 'alb-3',
-    user_id: 'usr-saimon',
-    title: 'The whole gang together!',
-    description: 'Cannot believe it has been 4 years since our grad day.',
-    image_url: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=1000&auto=format&fit=crop&q=80',
-    location_name: 'University Campus Plaza',
-    created_at: '2026-02-12T11:30:00Z',
-  },
-  {
-    id: 'p-5',
-    album_id: 'alb-4',
-    user_id: 'usr-ayesha',
-    title: 'Chocolate hazelnut birthday cake',
-    description: 'Surprise was a massive success! Look at that grin.',
-    image_url: 'https://images.unsplash.com/photo-1558636508-e0db3814bd1d?w=1000&auto=format&fit=crop&q=80',
-    location_name: 'Dhanmondi Rooftop',
-    created_at: '2026-02-18T20:15:00Z',
-  },
-  {
-    id: 'p-6',
-    album_id: 'alb-5',
-    user_id: 'usr-admin-tanvir',
-    title: 'Stargazing by the lake',
-    description: 'Late night chats under the open sky.',
-    image_url: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1000&auto=format&fit=crop&q=80',
-    location_name: 'Hatirjheel Overlook',
-    created_at: '2026-02-20T22:45:00Z',
-  },
-];
-
-const INITIAL_POSTS: Post[] = [
-  {
-    id: 'pst-1',
-    user_id: 'usr-admin-tanvir',
-    content: 'Welcome everyone to our private FriendsHub space! 🚀\n\nReal-time location sharing is officially live. Turn it on in the Live Map tab when you head out so the squad knows when you are nearby for impromptu coffee runs!',
-    post_type: 'announcement',
-    is_pinned: true,
-    created_at: '2026-02-22T09:00:00Z',
-    updated_at: '2026-02-22T09:00:00Z',
-    likes: [
-      { id: 'lk-1', post_id: 'pst-1', user_id: 'usr-rahim', created_at: '2026-02-22T09:15:00Z' },
-      { id: 'lk-2', post_id: 'pst-1', user_id: 'usr-saimon', created_at: '2026-02-22T09:20:00Z' },
-      { id: 'lk-3', post_id: 'pst-1', user_id: 'usr-ayesha', created_at: '2026-02-22T09:30:00Z' },
-    ],
-    comments: [
-      {
-        id: 'cm-1',
-        post_id: 'pst-1',
-        user_id: 'usr-rahim',
-        content: 'This is super sleek Tanvir! Already tested the live map and pinpoint accuracy is amazing 🙌',
-        created_at: '2026-02-22T09:16:00Z',
-      },
-      {
-        id: 'cm-2',
-        post_id: 'pst-1',
-        user_id: 'usr-ayesha',
-        content: 'So excited for this! No more sending "where are you" texts 20 times a day haha 😆',
-        created_at: '2026-02-22T09:32:00Z',
-      },
-    ],
-  },
-  {
-    id: 'pst-2',
-    user_id: 'usr-rahim',
-    content: 'Who is up for an evening coffee & debate session at North End Dhanmondi? I am nearby right now and the weather is amazing!',
-    images: [
-      'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=1000&auto=format&fit=crop&q=80',
-    ],
-    location_name: 'North End Coffee, Dhanmondi',
-    post_type: 'post',
-    created_at: '2026-02-23T10:30:00Z',
-    updated_at: '2026-02-23T10:30:00Z',
-    likes: [
-      { id: 'lk-4', post_id: 'pst-2', user_id: 'usr-admin-tanvir', created_at: '2026-02-23T10:35:00Z' },
-      { id: 'lk-5', post_id: 'pst-2', user_id: 'usr-saimon', created_at: '2026-02-23T10:40:00Z' },
-    ],
-    comments: [
-      {
-        id: 'cm-3',
-        post_id: 'pst-2',
-        user_id: 'usr-saimon',
-        content: 'Leaving Banani now, will be there in 20 mins!',
-        created_at: '2026-02-23T10:42:00Z',
-      },
-    ],
-  },
-  {
-    id: 'pst-3',
-    user_id: 'usr-admin-tanvir',
-    content: 'Uploaded new high-res photos from our weekend trip to the Sylhet album! Check them out in the Photos tab.',
-    images: [
-      'https://images.unsplash.com/photo-1448375240586-882707db888b?w=1000&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1000&auto=format&fit=crop&q=80',
-    ],
-    location_name: 'Sylhet Division',
-    post_type: 'photo_upload',
-    created_at: '2026-02-23T11:15:00Z',
-    updated_at: '2026-02-23T11:15:00Z',
-    likes: [
-      { id: 'lk-6', post_id: 'pst-3', user_id: 'usr-ayesha', created_at: '2026-02-23T11:20:00Z' },
-      { id: 'lk-7', post_id: 'pst-3', user_id: 'usr-priya', created_at: '2026-02-23T11:22:00Z' },
-    ],
-    comments: [],
+    user_id: 'usr-sara-khan',
+    title: 'Gulshan Cafe Hangout',
+    description: 'Golden hour moments',
+    image_url: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=1200&auto=format&fit=crop&q=80',
+    location_name: 'Gulshan 2, Dhaka',
+    created_at: new Date().toISOString(),
   },
 ];
 
 const INITIAL_EVENTS: CommunityEvent[] = [
   {
     id: 'evt-1',
-    title: 'FRIDAY NIGHT MEETUP',
-    description: 'Weekly squad meetup! Dinner, dessert, board games and planning our next camping roadtrip. Bring your appetite!',
+    title: 'Weekend Group Rooftop BBQ & Tech Jam',
+    description: 'Catching up, grilling skewers, playing board games and enjoying the evening breeze!',
     date: '2026-08-28',
-    time: '8:00 PM',
-    location_name: 'Dhanmondi Lake View Lounge, Dhaka',
+    time: '18:00',
+    location_name: 'Dhanmondi Lake View Rooftop',
     latitude: 23.7461,
     longitude: 90.3742,
     created_by: 'usr-admin-tanvir',
-    created_at: '2026-02-20T10:00:00Z',
+    created_at: new Date().toISOString(),
     attendees: [
-      { id: 'att-1', event_id: 'evt-1', user_id: 'usr-admin-tanvir', status: 'going', created_at: '2026-02-20T10:00:00Z' },
-      { id: 'att-2', event_id: 'evt-1', user_id: 'usr-rahim', status: 'going', created_at: '2026-02-20T10:15:00Z' },
-      { id: 'att-3', event_id: 'evt-1', user_id: 'usr-saimon', status: 'going', created_at: '2026-02-20T11:00:00Z' },
-      { id: 'att-4', event_id: 'evt-1', user_id: 'usr-ayesha', status: 'maybe', created_at: '2026-02-20T11:45:00Z' },
+      { id: 'att-1', event_id: 'evt-1', user_id: 'usr-admin-tanvir', status: 'going', created_at: new Date().toISOString() },
+      { id: 'att-2', event_id: 'evt-1', user_id: 'usr-sara-khan', status: 'going', created_at: new Date().toISOString() },
+      { id: 'att-3', event_id: 'evt-1', user_id: 'usr-rahim-chowdhury', status: 'maybe', created_at: new Date().toISOString() },
     ],
-  },
-  {
-    id: 'evt-2',
-    title: 'Sunday Morning Cycling & Lake Breakfast',
-    description: 'Hatirjheel perimeter cycling sprint followed by fresh parathas and spiced milk tea.',
-    date: '2026-08-30',
-    time: '6:30 AM',
-    location_name: 'Hatirjheel Amphitheatre, Dhaka',
-    latitude: 23.7705,
-    longitude: 90.4107,
-    created_by: 'usr-rahim',
-    created_at: '2026-02-21T14:30:00Z',
-    attendees: [
-      { id: 'att-5', event_id: 'evt-2', user_id: 'usr-rahim', status: 'going', created_at: '2026-02-21T14:30:00Z' },
-      { id: 'att-6', event_id: 'evt-2', user_id: 'usr-admin-tanvir', status: 'going', created_at: '2026-02-21T15:00:00Z' },
-      { id: 'att-7', event_id: 'evt-2', user_id: 'usr-priya', status: 'going', created_at: '2026-02-21T16:00:00Z' },
-    ],
-  },
-];
-
-const INITIAL_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: 'notif-1',
-    user_id: 'usr-admin-tanvir',
-    actor_id: 'usr-rahim',
-    type: 'comment',
-    title: 'New Comment',
-    message: 'Rahim Chowdhury commented on your post.',
-    link_tab: 'home',
-    is_read: false,
-    created_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-  },
-  {
-    id: 'notif-2',
-    user_id: 'usr-admin-tanvir',
-    actor_id: 'usr-ayesha',
-    type: 'like',
-    title: 'Post Liked',
-    message: 'Ayesha Siddiqua liked your photo update.',
-    link_tab: 'home',
-    is_read: false,
-    created_at: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-  },
-  {
-    id: 'notif-3',
-    user_id: 'usr-admin-tanvir',
-    actor_id: 'usr-rahim',
-    type: 'event',
-    title: 'Meetup RSVP',
-    message: 'Rahim RSVPed "Going" to Friday Night Meetup.',
-    link_tab: 'events',
-    is_read: true,
-    created_at: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
   },
 ];
 
 const INITIAL_SETTINGS: CommunitySettings = {
   community_name: 'FriendsHub',
-  invite_code: 'FRIENDS-2026-VIP',
+  invite_code: 'CIRCLE2026',
   allow_member_invites: true,
   allow_registration: true,
-  announcement_banner: 'Welcome to FriendsHub! Live location sharing is active.',
+  announcement_banner: '🌟 Welcome to FriendsHub! Live radar & real-time sync is active for all phones.',
   announcement_active: true,
-  default_location_interval_sec: 15,
+  default_location_interval_sec: 10,
 };
 
-// Storage helper with fallback to LocalStorage
+const INITIAL_ACTIVITY_LOGS: ActivityLog[] = [
+  {
+    id: 'act-init-1',
+    user_id: 'usr-admin-tanvir',
+    user_name: 'Tanvir Hasan Zim',
+    action: 'admin_action',
+    details: 'Initialized FriendsHub Centralized Cloud Database',
+    location_hint: 'Dhaka, Bangladesh',
+    timestamp: new Date().toISOString(),
+  },
+];
+
+// ---------------------------------------------------------
+// REAL-TIME SYNCHRONIZED CENTRAL DATA STORE
+// ---------------------------------------------------------
 class DataStore {
-  private profiles: UserProfile[];
-  private locations: UserLocation[];
-  private posts: Post[];
-  private albums: Album[];
-  private photos: Photo[];
-  private events: CommunityEvent[];
-  private notifications: NotificationItem[];
-  private reports: ReportItem[];
-  private invitations: Invitation[];
-  private settings: CommunitySettings;
+  private profiles: UserProfile[] = INITIAL_PROFILES;
+  private locations: UserLocation[] = INITIAL_LOCATIONS;
+  private posts: Post[] = INITIAL_POSTS;
+  private albums: Album[] = INITIAL_ALBUMS;
+  private photos: Photo[] = INITIAL_PHOTOS;
+  private events: CommunityEvent[] = INITIAL_EVENTS;
+  private notifications: NotificationItem[] = [];
+  private reports: ReportItem[] = [];
+  private invitations: Invitation[] = [
+    {
+      id: 'inv-init',
+      code: 'CIRCLE2026',
+      created_by: 'usr-admin-tanvir',
+      role: 'member',
+      is_used: false,
+      created_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+    },
+  ];
+  private settings: CommunitySettings = INITIAL_SETTINGS;
+  private activity_logs: ActivityLog[] = INITIAL_ACTIVITY_LOGS;
+  private search_logs: SearchLog[] = [];
   private listeners: Set<() => void> = new Set();
+  private syncTimer: any = null;
+  private isSyncing = false;
 
   constructor() {
+    // 1. Initial quick load from local cache
     this.profiles = this.loadFromStorage('fh_profiles', INITIAL_PROFILES);
     this.locations = this.loadFromStorage('fh_locations', INITIAL_LOCATIONS);
     this.posts = this.loadFromStorage('fh_posts', INITIAL_POSTS);
     this.albums = this.loadFromStorage('fh_albums', INITIAL_ALBUMS);
     this.photos = this.loadFromStorage('fh_photos', INITIAL_PHOTOS);
     this.events = this.loadFromStorage('fh_events', INITIAL_EVENTS);
-    this.notifications = this.loadFromStorage('fh_notifications', INITIAL_NOTIFICATIONS);
+    this.notifications = this.loadFromStorage('fh_notifications', []);
     this.reports = this.loadFromStorage('fh_reports', []);
     this.invitations = this.loadFromStorage('fh_invitations', []);
     this.settings = this.loadFromStorage('fh_settings', INITIAL_SETTINGS);
+    this.activity_logs = this.loadFromStorage('fh_activity_logs', INITIAL_ACTIVITY_LOGS);
+    this.search_logs = this.loadFromStorage('fh_search_logs', []);
+
+    // 2. Fetch live data from backend server immediately
+    this.syncWithServer();
+
+    // 3. Start background polling loop every 2.5s for real-time multi-device sync
+    if (typeof window !== 'undefined') {
+      this.syncTimer = setInterval(() => {
+        this.syncWithServer();
+      }, 2500);
+    }
   }
 
   private loadFromStorage<T>(key: string, defaultValue: T): T {
     try {
+      if (typeof window === 'undefined') return defaultValue;
       const data = localStorage.getItem(key);
       if (data) return JSON.parse(data);
     } catch {
@@ -494,11 +334,12 @@ class DataStore {
 
   private saveToStorage(key: string, value: unknown) {
     try {
-      localStorage.setItem(key, JSON.stringify(value));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(key, JSON.stringify(value));
+      }
     } catch {
-      // Ignore quota errors
+      // Safe fallback
     }
-    this.notify();
   }
 
   public subscribe(listener: () => void) {
@@ -513,9 +354,200 @@ class DataStore {
       try {
         listener();
       } catch {
-        // Safe notify
+        // Safe execution
       }
     });
+  }
+
+  // --- Real-time Backend Synchronization ---
+  public async syncWithServer() {
+    if (this.isSyncing) return;
+    this.isSyncing = true;
+    try {
+      const res = await fetch('/api/sync');
+      if (res.ok) {
+        const data = await res.json();
+        let changed = false;
+
+        if (data.profiles && JSON.stringify(data.profiles) !== JSON.stringify(this.profiles)) {
+          this.profiles = data.profiles;
+          this.saveToStorage('fh_profiles', this.profiles);
+          changed = true;
+        }
+
+        if (data.locations && JSON.stringify(data.locations) !== JSON.stringify(this.locations)) {
+          this.locations = data.locations;
+          this.saveToStorage('fh_locations', this.locations);
+          changed = true;
+        }
+
+        if (data.posts && JSON.stringify(data.posts) !== JSON.stringify(this.posts)) {
+          this.posts = data.posts;
+          this.saveToStorage('fh_posts', this.posts);
+          changed = true;
+        }
+
+        if (data.photos && JSON.stringify(data.photos) !== JSON.stringify(this.photos)) {
+          this.photos = data.photos;
+          this.saveToStorage('fh_photos', this.photos);
+          changed = true;
+        }
+
+        if (data.albums && JSON.stringify(data.albums) !== JSON.stringify(this.albums)) {
+          this.albums = data.albums;
+          this.saveToStorage('fh_albums', this.albums);
+          changed = true;
+        }
+
+        if (data.events && JSON.stringify(data.events) !== JSON.stringify(this.events)) {
+          this.events = data.events;
+          this.saveToStorage('fh_events', this.events);
+          changed = true;
+        }
+
+        if (data.notifications && JSON.stringify(data.notifications) !== JSON.stringify(this.notifications)) {
+          this.notifications = data.notifications;
+          this.saveToStorage('fh_notifications', this.notifications);
+          changed = true;
+        }
+
+        if (data.invitations && JSON.stringify(data.invitations) !== JSON.stringify(this.invitations)) {
+          this.invitations = data.invitations;
+          this.saveToStorage('fh_invitations', this.invitations);
+          changed = true;
+        }
+
+        if (data.settings && JSON.stringify(data.settings) !== JSON.stringify(this.settings)) {
+          this.settings = data.settings;
+          this.saveToStorage('fh_settings', this.settings);
+          changed = true;
+        }
+
+        if (data.activity_logs && JSON.stringify(data.activity_logs) !== JSON.stringify(this.activity_logs)) {
+          this.activity_logs = data.activity_logs;
+          this.saveToStorage('fh_activity_logs', this.activity_logs);
+          changed = true;
+        }
+
+        if (data.search_logs && JSON.stringify(data.search_logs) !== JSON.stringify(this.search_logs)) {
+          this.search_logs = data.search_logs;
+          this.saveToStorage('fh_search_logs', this.search_logs);
+          changed = true;
+        }
+
+        if (changed) {
+          this.notify();
+        }
+      }
+    } catch {
+      // Backend maybe restarting or offline, keep local state
+    } finally {
+      this.isSyncing = false;
+    }
+  }
+
+  // --- Auth & User Registration across Phones ---
+  public async registerUser(data: {
+    full_name: string;
+    username: string;
+    email: string;
+    phone?: string;
+    bio?: string;
+    avatar_url?: string;
+    role?: 'member' | 'admin';
+    invite_code?: string;
+    location_sharing_enabled?: boolean;
+    address_hint?: string;
+    latitude?: number;
+    longitude?: number;
+  }): Promise<{ success: boolean; profile?: UserProfile; error?: string }> {
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        return { success: false, error: body.error || 'Registration failed.' };
+      }
+
+      if (body.profile) {
+        this.profiles = [body.profile, ...this.profiles.filter((p) => p.id !== body.profile.id)];
+        this.saveToStorage('fh_profiles', this.profiles);
+      }
+      if (body.location) {
+        this.locations = [body.location, ...this.locations.filter((l) => l.user_id !== body.location.user_id)];
+        this.saveToStorage('fh_locations', this.locations);
+      }
+
+      this.notify();
+      this.syncWithServer();
+      return { success: true, profile: body.profile };
+    } catch (err: any) {
+      // Fallback local addition if network blip
+      const newProfile: UserProfile = {
+        id: `usr-${data.username.toLowerCase().replace(/[^a-z0-9_]/g, '')}-${Date.now().toString(36)}`,
+        email: data.email,
+        username: data.username.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+        full_name: data.full_name,
+        avatar_url: data.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+        bio: data.bio || 'New circle member 👋',
+        role: data.role || 'member',
+        is_active: true,
+        status: 'active',
+        location_sharing_enabled: data.location_sharing_enabled ?? true,
+        privacy_mode: 'exact',
+        online_status: 'online',
+        last_seen: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        phone: data.phone,
+      };
+      this.addProfile(newProfile);
+      return { success: true, profile: newProfile };
+    }
+  }
+
+  public async loginUser(identifier: string, address_hint?: string): Promise<{ success: boolean; profile?: UserProfile; error?: string }> {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier, address_hint }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        return { success: false, error: body.error || 'User not found.' };
+      }
+      if (body.profile) {
+        this.updateProfile(body.profile.id, { online_status: 'online', last_seen: new Date().toISOString() });
+        return { success: true, profile: body.profile };
+      }
+    } catch {
+      // Fallback to local profile check
+      const found = this.profiles.find(
+        (p) => p.email.toLowerCase() === identifier.toLowerCase() || p.username.toLowerCase() === identifier.toLowerCase()
+      );
+      if (found) {
+        this.updateProfile(found.id, { online_status: 'online', last_seen: new Date().toISOString() });
+        return { success: true, profile: found };
+      }
+    }
+    return { success: false, error: 'Member not found. Please register or verify username.' };
+  }
+
+  public async logoutUser(userId: string) {
+    try {
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }),
+      });
+    } catch {
+      // safe
+    }
+    this.updateProfile(userId, { online_status: 'offline', last_seen: new Date().toISOString() });
   }
 
   // --- Profiles ---
@@ -532,6 +564,15 @@ class DataStore {
       p.id === id ? { ...p, ...updates, updated_at: new Date().toISOString() } : p
     );
     this.saveToStorage('fh_profiles', this.profiles);
+    this.notify();
+
+    // Async server update
+    fetch(`/api/profiles/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    }).catch(() => {});
+
     return this.profiles.find((p) => p.id === id)!;
   }
 
@@ -545,8 +586,16 @@ class DataStore {
       created_at: profile.created_at || new Date().toISOString(),
       updated_at: profile.updated_at || new Date().toISOString(),
     };
-    this.profiles = [fullProfile, ...this.profiles];
+    this.profiles = [fullProfile, ...this.profiles.filter((p) => p.id !== fullProfile.id)];
     this.saveToStorage('fh_profiles', this.profiles);
+    this.notify();
+
+    // Async server creation
+    fetch('/api/profiles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fullProfile),
+    }).catch(() => {});
 
     // Provide initial GPS position if not already present
     if (!this.locations.some((l) => l.user_id === fullProfile.id)) {
@@ -556,7 +605,7 @@ class DataStore {
         is_sharing: fullProfile.location_sharing_enabled ?? true,
         address_hint: 'Dhaka Metropolitan, Bangladesh',
         activity: 'stationary',
-        battery_level: 88,
+        battery_level: 90,
       });
     }
 
@@ -568,9 +617,12 @@ class DataStore {
     this.locations = this.locations.filter((l) => l.user_id !== id);
     this.saveToStorage('fh_profiles', this.profiles);
     this.saveToStorage('fh_locations', this.locations);
+    this.notify();
+
+    fetch(`/api/profiles/${id}`, { method: 'DELETE' }).catch(() => {});
   }
 
-  // --- Locations ---
+  // --- Locations & Live Radar ---
   public getLocations(): UserLocation[] {
     return this.locations.map((loc) => ({
       ...loc,
@@ -587,6 +639,7 @@ class DataStore {
   public updateLocation(userId: string, locData: Partial<UserLocation>) {
     const existingIndex = this.locations.findIndex((l) => l.user_id === userId);
     const updatedRecord: UserLocation = {
+      id: existingIndex >= 0 ? this.locations[existingIndex].id : `loc-${userId}`,
       user_id: userId,
       latitude: locData.latitude ?? 23.7461,
       longitude: locData.longitude ?? 90.3742,
@@ -606,17 +659,25 @@ class DataStore {
         ...updatedRecord,
       };
     } else {
-      this.locations.push(updatedRecord);
+      this.locations.unshift(updatedRecord);
     }
     this.saveToStorage('fh_locations', this.locations);
+    this.notify();
 
-    // Also sync user profile sharing state
+    // Async server broadcast
+    fetch('/api/locations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedRecord),
+    }).catch(() => {});
+
+    // Sync profile sharing
     if (locData.is_sharing !== undefined) {
       this.updateProfile(userId, { location_sharing_enabled: locData.is_sharing });
     }
   }
 
-  // --- Posts ---
+  // --- Posts & Feed ---
   public getPosts(): Post[] {
     return this.posts
       .map((p) => ({
@@ -645,16 +706,13 @@ class DataStore {
     };
     this.posts = [newPost, ...this.posts];
     this.saveToStorage('fh_posts', this.posts);
+    this.notify();
 
-    // Notify other users
-    this.createNotification({
-      user_id: 'usr-admin-tanvir',
-      actor_id: post.user_id,
-      type: 'photo',
-      title: 'New Community Post',
-      message: `${this.getProfile(post.user_id)?.full_name || 'A friend'} shared a new post.`,
-      link_tab: 'home',
-    });
+    fetch('/api/posts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(post),
+    }).catch(() => {});
 
     return newPost;
   }
@@ -662,6 +720,8 @@ class DataStore {
   public deletePost(postId: string) {
     this.posts = this.posts.filter((p) => p.id !== postId);
     this.saveToStorage('fh_posts', this.posts);
+    this.notify();
+    fetch(`/api/posts/${postId}`, { method: 'DELETE' }).catch(() => {});
   }
 
   public toggleLike(postId: string, userId: string): boolean {
@@ -681,19 +741,16 @@ class DataStore {
         created_at: new Date().toISOString(),
       });
       liked = true;
-
-      if (post.user_id !== userId) {
-        this.createNotification({
-          user_id: post.user_id,
-          actor_id: userId,
-          type: 'like',
-          title: 'Post Liked',
-          message: `${this.getProfile(userId)?.full_name || 'Someone'} liked your post.`,
-          link_tab: 'home',
-        });
-      }
     }
     this.saveToStorage('fh_posts', this.posts);
+    this.notify();
+
+    fetch(`/api/posts/${postId}/like`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId }),
+    }).catch(() => {});
+
     return liked;
   }
 
@@ -710,17 +767,14 @@ class DataStore {
     };
     post.comments = [...(post.comments || []), newComment];
     this.saveToStorage('fh_posts', this.posts);
+    this.notify();
 
-    if (post.user_id !== userId) {
-      this.createNotification({
-        user_id: post.user_id,
-        actor_id: userId,
-        type: 'comment',
-        title: 'New Comment',
-        message: `${this.getProfile(userId)?.full_name || 'Someone'} commented on your post: "${content.slice(0, 30)}..."`,
-        link_tab: 'home',
-      });
-    }
+    fetch(`/api/posts/${postId}/comment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, content }),
+    }).catch(() => {});
+
     return newComment;
   }
 
@@ -729,6 +783,7 @@ class DataStore {
     if (!post) return;
     post.comments = (post.comments || []).filter((c) => c.id !== commentId);
     this.saveToStorage('fh_posts', this.posts);
+    this.notify();
   }
 
   // --- Albums & Photos ---
@@ -751,6 +806,7 @@ class DataStore {
     };
     this.albums = [newAlb, ...this.albums];
     this.saveToStorage('fh_albums', this.albums);
+    this.notify();
     return newAlb;
   }
 
@@ -770,13 +826,20 @@ class DataStore {
   public addPhoto(photo: Omit<Photo, 'id' | 'created_at'>): Photo {
     const newPhoto: Photo = {
       ...photo,
-      id: `p-${Date.now()}`,
+      id: `ph-${Date.now()}`,
       created_at: new Date().toISOString(),
     };
     this.photos = [newPhoto, ...this.photos];
     this.saveToStorage('fh_photos', this.photos);
+    this.notify();
 
-    // Also auto-post to feed
+    fetch('/api/photos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(photo),
+    }).catch(() => {});
+
+    // Auto-post to feed
     this.createPost({
       user_id: photo.user_id,
       content: photo.description || `Uploaded a new photo: "${photo.title || 'Untitled'}"`,
@@ -791,9 +854,11 @@ class DataStore {
   public deletePhoto(photoId: string) {
     this.photos = this.photos.filter((p) => p.id !== photoId);
     this.saveToStorage('fh_photos', this.photos);
+    this.notify();
+    fetch(`/api/photos/${photoId}`, { method: 'DELETE' }).catch(() => {});
   }
 
-  // --- Events ---
+  // --- Events & Meetups ---
   public getEvents(): CommunityEvent[] {
     return this.events
       .map((evt) => ({
@@ -824,8 +889,15 @@ class DataStore {
     };
     this.events = [newEvent, ...this.events];
     this.saveToStorage('fh_events', this.events);
+    this.notify();
 
-    // Also auto-post to feed
+    fetch('/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...eventData, user_id: eventData.created_by }),
+    }).catch(() => {});
+
+    // Auto-post to feed
     this.createPost({
       user_id: eventData.created_by,
       content: `📅 Created a new meetup: "${eventData.title}" on ${eventData.date} at ${eventData.time} in ${eventData.location_name}. ${eventData.description}`,
@@ -856,17 +928,26 @@ class DataStore {
       ];
     }
     this.saveToStorage('fh_events', this.events);
+    this.notify();
+
+    fetch(`/api/events/${eventId}/rsvp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, status }),
+    }).catch(() => {});
   }
 
   public deleteEvent(eventId: string) {
     this.events = this.events.filter((e) => e.id !== eventId);
     this.saveToStorage('fh_events', this.events);
+    this.notify();
+    fetch(`/api/events/${eventId}`, { method: 'DELETE' }).catch(() => {});
   }
 
   // --- Notifications ---
   public getNotifications(userId: string): NotificationItem[] {
     return this.notifications
-      .filter((n) => n.user_id === userId)
+      .filter((n) => n.user_id === userId || n.user_id === 'all')
       .map((n) => ({
         ...n,
         actor: n.actor_id ? this.getProfile(n.actor_id) : undefined,
@@ -883,19 +964,22 @@ class DataStore {
     };
     this.notifications = [newNotif, ...this.notifications];
     this.saveToStorage('fh_notifications', this.notifications);
+    this.notify();
     return newNotif;
   }
 
   public markNotificationAsRead(id: string) {
     this.notifications = this.notifications.map((n) => (n.id === id ? { ...n, is_read: true } : n));
     this.saveToStorage('fh_notifications', this.notifications);
+    this.notify();
   }
 
   public markAllNotificationsRead(userId: string) {
     this.notifications = this.notifications.map((n) =>
-      n.user_id === userId ? { ...n, is_read: true } : n
+      n.user_id === userId || n.user_id === 'all' ? { ...n, is_read: true } : n
     );
     this.saveToStorage('fh_notifications', this.notifications);
+    this.notify();
   }
 
   // --- Reports ---
@@ -916,12 +1000,14 @@ class DataStore {
     };
     this.reports = [newReport, ...this.reports];
     this.saveToStorage('fh_reports', this.reports);
+    this.notify();
     return newReport;
   }
 
   public updateReportStatus(reportId: string, status: 'resolved' | 'dismissed') {
     this.reports = this.reports.map((r) => (r.id === reportId ? { ...r, status } : r));
     this.saveToStorage('fh_reports', this.reports);
+    this.notify();
   }
 
   public resolveReport(reportId: string, status: 'resolved' | 'dismissed') {
@@ -946,12 +1032,22 @@ class DataStore {
     };
     this.invitations = [invite, ...this.invitations];
     this.saveToStorage('fh_invitations', this.invitations);
+    this.notify();
+
+    fetch('/api/invitations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ created_by: creatorId, email, role }),
+    }).catch(() => {});
+
     return invite;
   }
 
   public deleteInvite(inviteId: string) {
     this.invitations = this.invitations.filter((i) => i.id !== inviteId);
     this.saveToStorage('fh_invitations', this.invitations);
+    this.notify();
+    fetch(`/api/invitations/${inviteId}`, { method: 'DELETE' }).catch(() => {});
   }
 
   public markInviteUsed(code: string, userId: string) {
@@ -959,6 +1055,7 @@ class DataStore {
       i.code === code ? { ...i, is_used: true, used_by: userId, used_at: new Date().toISOString() } : i
     );
     this.saveToStorage('fh_invitations', this.invitations);
+    this.notify();
   }
 
   // --- Settings ---
@@ -969,21 +1066,125 @@ class DataStore {
   public updateSettings(updates: Partial<CommunitySettings>): CommunitySettings {
     this.settings = { ...this.settings, ...updates };
     this.saveToStorage('fh_settings', this.settings);
+    this.notify();
+
+    fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    }).catch(() => {});
+
     return this.settings;
   }
 
+  // --- Real-time Activity & Search Logs for Admin Audit Trail ---
+  public getActivityLogs(): ActivityLog[] {
+    return this.activity_logs;
+  }
+
+  public getSearchLogs(): SearchLog[] {
+    return this.search_logs;
+  }
+
+  public logSearch(
+    param1: string | { user_id?: string; user_name?: string; query: string; category?: any; results_count?: number },
+    query?: string,
+    category: 'friends' | 'posts' | 'events' | 'photos' | 'places' | 'global' = 'global',
+    resultCount = 0
+  ) {
+    let userId = 'anonymous';
+    let userName = 'Member';
+    let searchQuery = '';
+    let searchCategory: any = category;
+    let searchResultCount = resultCount;
+
+    if (typeof param1 === 'object') {
+      userId = param1.user_id || 'anonymous';
+      userName = param1.user_name || 'Member';
+      searchQuery = param1.query;
+      searchCategory = param1.category || 'global';
+      searchResultCount = param1.results_count !== undefined ? param1.results_count : 0;
+    } else {
+      userId = param1;
+      searchQuery = query || '';
+      const author = this.getProfile(userId);
+      if (author) userName = author.full_name;
+    }
+
+    if (!searchQuery || searchQuery.trim().length < 2) return;
+
+    const newSearch: SearchLog = {
+      id: `srch-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      user_id: userId,
+      user_name: userName,
+      query: searchQuery.trim(),
+      category: searchCategory,
+      result_count: searchResultCount,
+      timestamp: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    };
+
+    this.search_logs = [newSearch, ...this.search_logs.slice(0, 499)];
+    this.saveToStorage('fh_search_logs', this.search_logs);
+
+    // Send to backend
+    fetch('/api/activity/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: userId,
+        user_name: userName,
+        query: searchQuery.trim(),
+        category: searchCategory,
+        results_count: searchResultCount,
+      }),
+    }).catch(() => {});
+  }
+
+  public logActivity(
+    userId: string,
+    userName: string,
+    action: ActivityLog['action'],
+    details: string,
+    extra: { location_hint?: string; device_hint?: string; metadata?: any } = {}
+  ) {
+    const newLog: ActivityLog = {
+      id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      user_id: userId,
+      user_name: userName,
+      action,
+      details,
+      location_hint: extra.location_hint || 'Dhaka, Bangladesh',
+      device_hint: extra.device_hint,
+      timestamp: new Date().toISOString(),
+      metadata: extra.metadata,
+    };
+
+    this.activity_logs = [newLog, ...this.activity_logs.slice(0, 499)];
+    this.saveToStorage('fh_activity_logs', this.activity_logs);
+    this.notify();
+
+    fetch('/api/activity/logs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, user_name: userName, action, details, ...extra }),
+    }).catch(() => {});
+  }
+
   // Reset demo data
-  public resetToDefaults() {
+  public async resetToDefaults() {
     this.profiles = INITIAL_PROFILES;
     this.locations = INITIAL_LOCATIONS;
     this.posts = INITIAL_POSTS;
     this.albums = INITIAL_ALBUMS;
     this.photos = INITIAL_PHOTOS;
     this.events = INITIAL_EVENTS;
-    this.notifications = INITIAL_NOTIFICATIONS;
+    this.notifications = [];
     this.reports = [];
     this.invitations = [];
     this.settings = INITIAL_SETTINGS;
+    this.activity_logs = INITIAL_ACTIVITY_LOGS;
+    this.search_logs = [];
 
     localStorage.removeItem('fh_profiles');
     localStorage.removeItem('fh_locations');
@@ -995,6 +1196,14 @@ class DataStore {
     localStorage.removeItem('fh_reports');
     localStorage.removeItem('fh_invitations');
     localStorage.removeItem('fh_settings');
+    localStorage.removeItem('fh_activity_logs');
+    localStorage.removeItem('fh_search_logs');
+
+    try {
+      await fetch('/api/reset', { method: 'POST' });
+    } catch {
+      // safe
+    }
 
     this.notify();
   }

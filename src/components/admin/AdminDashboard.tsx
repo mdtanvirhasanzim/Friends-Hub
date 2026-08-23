@@ -26,10 +26,16 @@ import {
   Search,
   KeyRound,
   LogIn,
+  LogOut,
+  Activity,
+  Globe,
+  Compass,
+  Laptop,
+  RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { store } from '../../lib/storage';
-import { UserProfile, Post, Report, CommunitySettings, Invitation, UserLocation, Photo } from '../../types';
+import { UserProfile, Post, Report, CommunitySettings, Invitation, UserLocation, Photo, ActivityLog, SearchLog } from '../../types';
 import { timeAgo } from '../../lib/geoUtils';
 import confetti from 'canvas-confetti';
 
@@ -93,6 +99,11 @@ export const AdminDashboard: React.FC = () => {
   const [generatedInviteLink, setGeneratedInviteLink] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
 
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(store.getActivityLogs());
+  const [searchLogs, setSearchLogs] = useState<SearchLog[]>(store.getSearchLogs());
+  const [activityFilter, setActivityFilter] = useState<'all' | 'login_logout' | 'search' | 'posts' | 'register' | 'location'>('all');
+  const [activitySearchQuery, setActivitySearchQuery] = useState('');
+
   // Settings form
   const [communityName, setCommunityName] = useState(settings.community_name);
   const [announcementText, setAnnouncementText] = useState(settings.announcement_banner);
@@ -100,7 +111,7 @@ export const AdminDashboard: React.FC = () => {
   const [allowRegistration, setAllowRegistration] = useState(settings.allow_registration);
   const [saveSettingsSuccess, setSaveSettingsSuccess] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'moderation' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'activity' | 'moderation' | 'settings'>('overview');
 
   useEffect(() => {
     const refresh = () => {
@@ -110,6 +121,8 @@ export const AdminDashboard: React.FC = () => {
       setReports(store.getReports());
       setInvitations(store.getInvites());
       setLocations(store.getLocations());
+      setActivityLogs(store.getActivityLogs());
+      setSearchLogs(store.getSearchLogs());
       const s = store.getSettings();
       setSettings(s);
       setCommunityName(s.community_name);
@@ -390,6 +403,7 @@ export const AdminDashboard: React.FC = () => {
         {[
           { id: 'overview', label: 'Community Metrics' },
           { id: 'members', label: `Members Directory (${members.length})` },
+          { id: 'activity', label: `Live Activity & Search Audit (${activityLogs.length})` },
           {
             id: 'moderation',
             label: `Moderation Queue ${pendingReportsCount > 0 ? `(${pendingReportsCount})` : ''}`,
@@ -399,13 +413,14 @@ export const AdminDashboard: React.FC = () => {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`px-4 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+            className={`px-4 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all flex items-center gap-1.5 ${
               activeTab === tab.id
                 ? 'bg-zinc-800 text-white border border-white/10 shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            {tab.label}
+            {tab.id === 'activity' && <Activity className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />}
+            <span>{tab.label}</span>
           </button>
         ))}
       </div>
@@ -736,7 +751,339 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* 3. MODERATION QUEUE */}
+      {/* 3. LIVE ACTIVITY & SEARCH AUDIT TAB */}
+      {activeTab === 'activity' && (
+        <div className="space-y-6">
+          {/* Header & Controls */}
+          <div className="bg-[#080808] rounded-3xl border border-[#1a1a1a] p-6 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+                    <Activity className="w-4 h-4 animate-pulse" />
+                  </div>
+                  <h3 className="font-serif font-bold text-lg text-white">Live Multi-Device Activity & Search Audit</h3>
+                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                    Real-time Central DB
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Tracks logins, logouts, member registrations, live location changes, and user search queries across all phones and browsers.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    store.syncWithServer();
+                    setActivityLogs(store.getActivityLogs());
+                    setSearchLogs(store.getSearchLogs());
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-white/10 text-xs font-medium flex items-center gap-1.5 transition-colors"
+                  title="Force refresh logs from server"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Sync Now</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Metrics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-white/5">
+              <div className="p-3.5 rounded-2xl bg-zinc-900/60 border border-white/5">
+                <div className="text-xs text-zinc-400 font-medium">Total Activity Events</div>
+                <div className="text-xl font-serif font-bold text-white mt-1">{activityLogs.length}</div>
+                <div className="text-[10px] text-zinc-500 mt-0.5">Recorded in DB</div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-zinc-900/60 border border-white/5">
+                <div className="text-xs text-zinc-400 font-medium">Logins & Sessions</div>
+                <div className="text-xl font-serif font-bold text-emerald-400 mt-1">
+                  {activityLogs.filter((l) => l.action === 'login' || l.action === 'logout').length}
+                </div>
+                <div className="text-[10px] text-zinc-500 mt-0.5">Device connections</div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-zinc-900/60 border border-white/5">
+                <div className="text-xs text-zinc-400 font-medium">Search Queries</div>
+                <div className="text-xl font-serif font-bold text-indigo-400 mt-1">{searchLogs.length}</div>
+                <div className="text-[10px] text-zinc-500 mt-0.5">Keywords logged</div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-zinc-900/60 border border-white/5">
+                <div className="text-xs text-zinc-400 font-medium">Active Synchronized Users</div>
+                <div className="text-xl font-serif font-bold text-amber-400 mt-1">
+                  {members.filter((m) => m.online_status === 'online').length} / {members.length}
+                </div>
+                <div className="text-[10px] text-zinc-500 mt-0.5">Online right now</div>
+              </div>
+            </div>
+
+            {/* Filters and Search in logs */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-white/5">
+              <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+                {[
+                  { id: 'all', label: `All Events (${activityLogs.length})` },
+                  {
+                    id: 'login_logout',
+                    label: `Logins & Logouts (${activityLogs.filter((a) => a.action === 'login' || a.action === 'logout').length})`,
+                  },
+                  { id: 'search', label: `Searches (${searchLogs.length})` },
+                  {
+                    id: 'register',
+                    label: `Registrations (${activityLogs.filter((a) => a.action === 'register' || a.action === 'add_member').length})`,
+                  },
+                  {
+                    id: 'posts',
+                    label: `Posts & Media (${activityLogs.filter((a) => a.action === 'create_post' || a.action === 'upload_photo').length})`,
+                  },
+                  {
+                    id: 'location',
+                    label: `GPS Updates (${activityLogs.filter((a) => a.action === 'update_location').length})`,
+                  },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setActivityFilter(f.id as any)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-xl whitespace-nowrap transition-all ${
+                      activityFilter === f.id
+                        ? 'bg-zinc-800 text-white border border-white/10 shadow-sm'
+                        : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative shrink-0">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                <input
+                  type="text"
+                  value={activitySearchQuery}
+                  onChange={(e) => setActivitySearchQuery(e.target.value)}
+                  placeholder="Filter activity details..."
+                  className="w-full sm:w-56 pl-8 pr-3 py-1.5 bg-zinc-900 border border-white/10 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Search Queries Deep-Dive (If Search filter is selected or has queries) */}
+          {activityFilter === 'search' && (
+            <div className="bg-[#080808] rounded-3xl border border-[#1a1a1a] p-6 shadow-xl space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Search className="w-4 h-4 text-indigo-400" />
+                  <h4 className="font-serif font-bold text-sm text-white">All Logged User Searches</h4>
+                </div>
+                <span className="text-xs text-zinc-400">{searchLogs.length} total searches</span>
+              </div>
+
+              {searchLogs.length === 0 ? (
+                <div className="text-center py-8 text-zinc-500 text-xs">
+                  No searches recorded yet. When users search for friends, posts, or places, they will appear here in real time.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#111111] text-zinc-400 font-medium border-b border-white/5 uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-3">Search Query</th>
+                        <th className="p-3">User</th>
+                        <th className="p-3">Category</th>
+                        <th className="p-3">Results Count</th>
+                        <th className="p-3">Device / IP</th>
+                        <th className="p-3 text-right">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5 text-zinc-300">
+                      {searchLogs
+                        .filter((s) =>
+                          !activitySearchQuery ||
+                          s.query.toLowerCase().includes(activitySearchQuery.toLowerCase()) ||
+                          s.user_name.toLowerCase().includes(activitySearchQuery.toLowerCase())
+                        )
+                        .map((s) => (
+                          <tr key={s.id} className="hover:bg-zinc-900/40 transition-colors">
+                            <td className="p-3">
+                              <span className="font-mono px-2 py-0.5 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/20 font-medium">
+                                "{s.query}"
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              <div className="font-medium text-white">{s.user_name}</div>
+                              <div className="text-[10px] text-zinc-500">ID: {s.user_id.slice(0, 10)}</div>
+                            </td>
+                            <td className="p-3">
+                              <span className="capitalize px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 text-[10px] border border-white/5">
+                                {s.category || 'all'}
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              <span className="text-xs text-zinc-300 font-mono font-medium">{s.results_count} found</span>
+                            </td>
+                            <td className="p-3 text-zinc-400 text-[11px] font-mono">
+                              {s.device || 'Mobile / Web'} • {s.ip || '127.0.0.1'}
+                            </td>
+                            <td className="p-3 text-right text-zinc-400 text-[11px]">
+                              <div>{timeAgo(s.created_at || s.timestamp)}</div>
+                              <div className="text-[10px] text-zinc-500">{new Date(s.created_at || s.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Activity Timeline Feed */}
+          <div className="bg-[#080808] rounded-3xl border border-[#1a1a1a] p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-white/5">
+              <div className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-emerald-400" />
+                <h4 className="font-serif font-bold text-sm text-white">Full Event Stream & Activity Audit</h4>
+              </div>
+              <span className="text-xs text-zinc-400 font-mono">
+                Showing {activityLogs.length} events
+              </span>
+            </div>
+
+            {activityLogs.length === 0 ? (
+              <div className="text-center py-12 text-zinc-500 text-xs">
+                No activity logged yet. All actions will stream here live.
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {activityLogs
+                  .filter((log) => {
+                    if (activityFilter === 'login_logout') return log.action === 'login' || log.action === 'logout';
+                    if (activityFilter === 'search') return log.action === 'search';
+                    if (activityFilter === 'register') return log.action === 'register' || log.action === 'add_member';
+                    if (activityFilter === 'posts') return log.action === 'create_post' || log.action === 'upload_photo';
+                    if (activityFilter === 'location') return log.action === 'update_location';
+                    return true;
+                  })
+                  .filter((log) => {
+                    if (!activitySearchQuery) return true;
+                    const q = activitySearchQuery.toLowerCase();
+                    return (
+                      log.details.toLowerCase().includes(q) ||
+                      log.user_name.toLowerCase().includes(q) ||
+                      log.action.toLowerCase().includes(q) ||
+                      (log.location_hint && log.location_hint.toLowerCase().includes(q))
+                    );
+                  })
+                  .map((log) => {
+                    const profile = members.find((m) => m.id === log.user_id);
+                    const isLogin = log.action === 'login';
+                    const isLogout = log.action === 'logout';
+                    const isSearch = log.action === 'search';
+                    const isRegister = log.action === 'register' || log.action === 'add_member';
+                    const isPost = log.action === 'create_post';
+                    const isPhoto = log.action === 'upload_photo';
+                    const isLocation = log.action === 'update_location';
+
+                    return (
+                      <div
+                        key={log.id}
+                        className="p-4 rounded-2xl bg-zinc-900/40 hover:bg-zinc-900/70 border border-white/5 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                        <div className="flex items-start gap-3">
+                          {/* Action Icon Badge */}
+                          <div
+                            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                              isLogin
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                : isLogout
+                                ? 'bg-zinc-800 text-zinc-400 border-white/10'
+                                : isSearch
+                                ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                                : isRegister
+                                ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                : isPost
+                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                : isPhoto
+                                ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                : 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                            }`}
+                          >
+                            {isLogin && <LogIn className="w-4 h-4" />}
+                            {isLogout && <LogOut className="w-4 h-4" />}
+                            {isSearch && <Search className="w-4 h-4" />}
+                            {isRegister && <UserPlus className="w-4 h-4" />}
+                            {isPost && <FileText className="w-4 h-4" />}
+                            {isPhoto && <ImageIcon className="w-4 h-4" />}
+                            {isLocation && <MapPin className="w-4 h-4" />}
+                            {!isLogin && !isLogout && !isSearch && !isRegister && !isPost && !isPhoto && !isLocation && (
+                              <Activity className="w-4 h-4" />
+                            )}
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium text-xs text-white">{log.user_name}</span>
+                              {profile && (
+                                <span className="text-[10px] text-zinc-500">@{profile.username}</span>
+                              )}
+                              <span
+                                className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-medium uppercase tracking-wider ${
+                                  isLogin
+                                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                    : isLogout
+                                    ? 'bg-zinc-800 text-zinc-400 border border-white/5'
+                                    : isSearch
+                                    ? 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/30'
+                                    : isRegister
+                                    ? 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
+                                    : 'bg-zinc-800 text-zinc-300 border border-white/5'
+                                }`}
+                              >
+                                {log.action.replace('_', ' ')}
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-zinc-300 leading-relaxed">{log.details}</p>
+
+                            <div className="flex flex-wrap items-center gap-3 text-[11px] text-zinc-500 pt-0.5">
+                              {log.location_hint && (
+                                <span className="flex items-center gap-1 text-zinc-400">
+                                  <MapPin className="w-3 h-3 text-indigo-400" />
+                                  <span>{log.location_hint}</span>
+                                </span>
+                              )}
+                              {log.device && (
+                                <span className="flex items-center gap-1 font-mono text-[10px]">
+                                  <Laptop className="w-3 h-3 text-zinc-600" />
+                                  <span>{log.device}</span>
+                                </span>
+                              )}
+                              {log.ip && (
+                                <span className="font-mono text-[10px] text-zinc-600">IP: {log.ip}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 text-right sm:self-center pl-12 sm:pl-0">
+                          <div className="text-xs text-zinc-400 font-medium">{timeAgo(log.created_at || log.timestamp)}</div>
+                          <div className="text-[10px] text-zinc-500 font-mono">
+                            {new Date(log.created_at || log.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 4. MODERATION QUEUE */}
       {activeTab === 'moderation' && (
         <div className="bg-[#080808] rounded-3xl border border-[#1a1a1a] p-6 shadow-xl space-y-4">
           <div className="flex items-center justify-between">
