@@ -244,21 +244,30 @@ DECLARE
   new_avatar TEXT;
   new_role TEXT;
 BEGIN
-  -- Extract username from raw_user_meta_data or email prefix
-  new_username := COALESCE(
-    NEW.raw_user_meta_data->>'username',
-    LOWER(SPLIT_PART(NEW.email, '@', 1))
-  );
+  -- Extract and sanitize username
+  new_username := LOWER(COALESCE(
+    NULLIF(TRIM(NEW.raw_user_meta_data->>'username'), ''),
+    SPLIT_PART(NEW.email, '@', 1)
+  ));
+  new_username := REGEXP_REPLACE(new_username, '[^a-z0-9_]', '', 'g');
+  IF new_username = '' THEN
+    new_username := 'user_' || SUBSTRING(NEW.id::TEXT, 1, 6);
+  END IF;
+
+  -- Ensure unique username in profiles table to prevent trigger transaction abort
+  IF EXISTS (SELECT 1 FROM public.profiles WHERE username = new_username AND id <> NEW.id::TEXT) THEN
+    new_username := new_username || '_' || SUBSTRING(NEW.id::TEXT, 1, 4);
+  END IF;
 
   -- Extract full_name or fallback
   new_full_name := COALESCE(
-    NEW.raw_user_meta_data->>'full_name',
+    NULLIF(TRIM(NEW.raw_user_meta_data->>'full_name'), ''),
     INITCAP(SPLIT_PART(NEW.email, '@', 1))
   );
 
   -- Extract avatar or fallback
   new_avatar := COALESCE(
-    NEW.raw_user_meta_data->>'avatar_url',
+    NULLIF(TRIM(NEW.raw_user_meta_data->>'avatar_url'), ''),
     'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80'
   );
 
@@ -269,7 +278,7 @@ BEGIN
     new_role := COALESCE(NEW.raw_user_meta_data->>'role', 'member');
   END IF;
 
-  -- Insert or update profile
+  -- Insert or update profile in public.profiles table
   INSERT INTO public.profiles (
     id,
     username,
@@ -291,7 +300,7 @@ BEGIN
     new_full_name,
     NEW.email,
     new_avatar,
-    COALESCE(NEW.raw_user_meta_data->>'bio', 'New member in FriendsHub circle! 👋'),
+    COALESCE(NEW.raw_user_meta_data->>'bio', 'Friend in the circle 👋'),
     NEW.raw_user_meta_data->>'phone',
     new_role,
     'active',
@@ -340,6 +349,10 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_new_user();
+
+-- Set REPLICA IDENTITY to FULL for complete Realtime updates
+ALTER TABLE public.profiles REPLICA IDENTITY FULL;
+ALTER TABLE public.locations REPLICA IDENTITY FULL;
 
 -- Trigger to auto-update updated_at timestamp
 CREATE OR REPLACE FUNCTION public.set_updated_at()

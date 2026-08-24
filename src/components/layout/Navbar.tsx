@@ -9,6 +9,7 @@ import {
   Menu,
   X,
   Compass,
+  Shield,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLocationContext } from '../../context/LocationContext';
@@ -26,7 +27,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   onOpenProfile,
 }) => {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, isAdmin } = useAuth();
   const { isSharing, toggleLocationSharing, isLocating } = useLocationContext();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   
@@ -34,6 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   const sharingCount = store.getLocations().filter((l) => l.is_sharing).length;
+  const isUserAdmin = isAdmin || currentUser?.role === 'admin' || currentUser?.email?.toLowerCase() === 'mdtanvirhasanzim12@gmail.com';
 
   return (
     <header id="main-header" className="sticky top-0 z-40 bg-[#080808]/90 backdrop-blur-md border-b border-[#1a1a1a] text-[#f0f0f0]">
@@ -218,6 +220,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
 
                 <div className="py-1 space-y-0.5 text-xs">
+                  {isUserAdmin && (
+                    <button
+                      id="btn-menu-admin-panel"
+                      onClick={() => {
+                        setActiveTab('admin');
+                        setShowUserMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-amber-300 hover:text-amber-200 hover:bg-amber-950/30 transition-colors text-left font-medium border border-amber-500/20 mb-1 bg-amber-500/5"
+                    >
+                      <Shield className="w-4 h-4 text-amber-400" />
+                      <span>Admin Control Panel</span>
+                    </button>
+                  )}
                   <button
                     id="btn-menu-my-profile"
                     onClick={() => {

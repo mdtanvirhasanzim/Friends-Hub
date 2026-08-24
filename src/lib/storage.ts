@@ -860,12 +860,36 @@ export class DataStore {
     }
 
     const clean = identifier.trim().toLowerCase().replace(/^@/, '');
-    const found = this.profiles.find(
+    let found = this.profiles.find(
       (p) =>
         p.email?.toLowerCase() === clean ||
         p.username.toLowerCase() === clean ||
         p.id === clean
     );
+
+    // Auto-restore admin account if matching admin credentials
+    if (!found && (clean === 'mdtanvirhasanzim12@gmail.com' || clean === 'tanvir_zim' || clean === 'admin' || clean === 'tanvir')) {
+      found = {
+        id: 'usr-tanvir-admin',
+        email: 'mdtanvirhasanzim12@gmail.com',
+        username: 'tanvir_zim',
+        full_name: 'Tanvir Hasan Zim',
+        avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop&q=80',
+        bio: 'Founder & Circle Organizer 🚀 Building our community hub.',
+        role: 'admin',
+        is_active: true,
+        status: 'active',
+        location_sharing_enabled: true,
+        privacy_mode: 'exact',
+        online_status: 'online',
+        last_seen: new Date().toISOString(),
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: new Date().toISOString(),
+        phone: '+880 1712-345678',
+      };
+      this.profiles = [found, ...this.profiles.filter((p) => p.id !== found!.id)];
+      this.saveToStorage('fh_profiles', this.profiles);
+    }
 
     if (found) {
       if (found.status === 'suspended' || found.is_active === false) {

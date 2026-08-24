@@ -8,7 +8,9 @@ import {
   Bell,
   User,
   Settings,
+  Shield,
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { useLocationContext } from '../../context/LocationContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { store } from '../../lib/storage';
@@ -19,11 +21,14 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
+  const { currentUser, isAdmin } = useAuth();
   const { isSharing, toggleLocationSharing } = useLocationContext();
   const { unreadCount } = useNotifications();
 
   const sharingCount = store.getLocations().filter((l) => l.is_sharing).length;
   const activeMembersCount = store.getProfiles().filter((p) => p.online_status !== 'offline').length;
+
+  const isUserAdmin = isAdmin || currentUser?.role === 'admin' || currentUser?.email?.toLowerCase() === 'mdtanvirhasanzim12@gmail.com';
 
   const navItems = [
     {
@@ -66,6 +71,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
       badge: unreadCount > 0 ? `${unreadCount}` : null,
       badgeColor: 'bg-indigo-600 text-white font-bold',
     },
+    ...(isUserAdmin
+      ? [
+          {
+            id: 'admin',
+            label: 'Admin Panel',
+            icon: Shield,
+            badge: 'Master',
+            badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono font-bold',
+          },
+        ]
+      : []),
     {
       id: 'profile',
       label: 'My Profile',
@@ -86,7 +102,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     { id: 'map', label: 'Radar', icon: MapPin, pulse: isSharing || sharingCount > 0 },
     { id: 'friends', label: 'Friends', icon: Users },
     { id: 'photos', label: 'Photos', icon: ImageIcon },
-    { id: 'events', label: 'Events', icon: Calendar },
+    ...(isUserAdmin ? [{ id: 'admin', label: 'Admin', icon: Shield }] : [{ id: 'events', label: 'Events', icon: Calendar }]),
     { id: 'profile', label: 'Profile', icon: User },
   ];
 

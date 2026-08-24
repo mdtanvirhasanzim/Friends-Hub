@@ -13,6 +13,7 @@ import { FriendsDirectory } from './components/friends/FriendsDirectory';
 import { NotificationsView } from './components/notifications/NotificationsView';
 import { ProfileView } from './components/profile/ProfileView';
 import { SettingsView } from './components/settings/SettingsView';
+import { AdminDashboard } from './components/admin/AdminDashboard';
 
 const MainAppContent: React.FC = () => {
   const { currentUser, isLoading } = useAuth();
@@ -97,6 +98,8 @@ const MainAppContent: React.FC = () => {
           {activeTab === 'profile' && <ProfileView />}
 
           {activeTab === 'settings' && <SettingsView />}
+
+          {activeTab === 'admin' && <AdminDashboard />}
         </main>
       </div>
     </div>

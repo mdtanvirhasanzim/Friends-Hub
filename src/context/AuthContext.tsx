@@ -311,8 +311,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (signUpData.user) {
-          // Allow trigger to populate profile or manually upsert if needed
+          // Allow database trigger to populate profile, with resilient fallback
           let profile = await fetchProfile(signUpData.user.id);
+          if (!profile) {
+            await new Promise((r) => setTimeout(r, 250));
+            profile = await fetchProfile(signUpData.user.id);
+          }
+
           if (!profile) {
             const newProfileObj: UserProfile = {
               id: signUpData.user.id,
@@ -320,7 +325,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               username: cleanUsername,
               full_name: data.full_name.trim(),
               avatar_url: data.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-              bio: data.bio || 'New member in FriendsHub! 👋',
+              bio: data.bio || 'Friend in the circle 👋',
               role: 'member',
               is_active: true,
               status: 'active',
@@ -336,6 +341,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             profile = newProfileObj;
           }
 
+          store.addProfile(profile);
           setCurrentUser(profile);
           localStorage.setItem('fh_active_user_id', profile.id);
           setupPresence(profile);
