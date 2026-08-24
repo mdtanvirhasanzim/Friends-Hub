@@ -530,24 +530,64 @@ export class DataStore {
 
     try {
       // 1. Sync Profiles
-      const cleanProfiles = this.profiles.map((p) => ({
-        id: p.id,
-        username: p.username,
-        full_name: p.full_name,
-        email: p.email,
-        avatar_url: p.avatar_url,
-        bio: p.bio,
-        phone: p.phone,
-        role: p.role || 'member',
-        status: p.status || 'active',
-        is_active: p.is_active ?? true,
-        online_status: p.online_status || 'online',
-        last_seen: p.last_seen || new Date().toISOString(),
-        location_sharing_enabled: p.location_sharing_enabled ?? true,
-        privacy_mode: p.privacy_mode || 'exact',
-        created_at: p.created_at || new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }));
+      // 1. Get existing Supabase profiles by Friends-Hub local ID
+const { data: existingProfiles, error: existingProfilesError } =
+  await supabase
+    .from('profiles')
+    .select('id, external_user_id, external_id')
+    .in(
+      'external_user_id',
+      this.profiles.map((p) => p.id)
+    );
+
+if (existingProfilesError) {
+  throw existingProfilesError;
+}
+
+// 2. Create local ID -> Supabase UUID mapping
+const profileIdMap = new Map(
+  (existingProfiles || []).map((p) => [
+    p.external_user_id || p.external_id,
+    p.id,
+  ])
+);
+
+// 3. Prepare profiles for Supabase
+const cleanProfiles = this.profiles
+  .map((p) => {
+    const supabaseId = profileIdMap.get(p.id);
+
+    // Don't send a local usr-* ID into UUID column
+    if (!supabaseId) {
+      console.warn(
+        `Skipping profile ${p.id}: no Supabase Auth/profile UUID found`
+      );
+      return null;
+    }
+
+    return {
+      id: supabaseId,                 // ✅ UUID
+      username: p.username,
+      full_name: p.full_name,
+      email: p.email,
+      avatar_url: p.avatar_url,
+      bio: p.bio,
+      phone: p.phone,
+      role: p.role || 'member',
+      status: p.status || 'active',
+      is_active: p.is_active ?? true,
+      online_status: p.online_status || 'online',
+      last_seen: p.last_seen || new Date().toISOString(),
+      location_sharing_enabled:
+        p.location_sharing_enabled ?? true,
+      privacy_mode: p.privacy_mode || 'exact',
+      external_user_id: p.id,         // ✅ usr-tanvir-admin
+      external_id: p.id,              // ✅ usr-tanvir-admin
+      created_at: p.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+  })
+  .filter(Boolean);
 
       const { error: profErr } = await supabase.from('profiles').upsert(cleanProfiles, { onConflict: 'id' });
       if (profErr) throw new Error(`Profiles Sync Failed: ${profErr.message}`);
