@@ -10,9 +10,7 @@ export async function signUpWithSupabase(email: string, password: string, userna
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: {
-      data: { username: username || email.split('@')[0] },
-    },
+    options: { data: { username: username || email.split('@')[0] } },
   })
   if (error) throw error
   return data
