@@ -151,11 +151,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       const profile = await fetchProfile(data.user.id);
       if (!profile) {
-        await supabase.auth.signOut();
+        // Never clear a valid Supabase session merely because the profile lookup
+        // is temporarily unavailable. The previous implementation signed out
+        // here, which made the login form reappear about a second after login.
         setLoading(false);
-        return { success: false, error: 'Authentication succeeded, but your FriendsHub profile is missing.' };
+        return { success: false, error: 'Authentication succeeded, but your FriendsHub profile could not be loaded. Please try again.' };
       }
-      if (!profile.is_active || profile.status === 'suspended') {
+      // `profiles.is_active` is nullable in the existing production schema.
+      // NULL means "not explicitly disabled", not "suspended". Only an
+      // explicit false should block an otherwise valid authenticated user.
+      if (profile.is_active === false || profile.status === 'suspended') {
         await supabase.auth.signOut();
         setLoading(false);
         return { success: false, error: 'Your account is suspended. Please contact circle management.' };
