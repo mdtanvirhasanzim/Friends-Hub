@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { LocationProvider, useLocationContext } from './context/LocationContext';
-import { NotificationProvider, useNotifications } from './context/NotificationContext';
+import { LocationProvider } from './context/LocationContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
 import { LoginView } from './components/auth/LoginView';
@@ -18,37 +18,152 @@ import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { store } from './lib/storage';
 
 /**
- * One application-wide realtime bridge.
+ * Supabase-authoritative realtime bridge.
  *
- * DataStore already subscribes to Supabase Realtime, but some child tables
- * (likes/comments/RSVPs) are relational records and therefore do not change
- * the parent post/event row. This bridge makes every public-table change cause
- * a fresh cloud read, so every open browser converges on the same Supabase
- * state immediately.
+ * The old app had two competing sources of truth: localStorage/API fallback
+ * state and Supabase. The fallback /api/sync poll could overwrite fresh cloud
+ * data every few seconds. In configured Supabase mode we stop that poll and
+ * rebuild the in-memory store from the cloud after every database change.
+ *
+ * Child tables (likes/comments/RSVPs) are also loaded here because changing a
+ * child row does not change its parent post/event row.
  */
 const RealtimeSync: React.FC = () => {
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshingRef = useRef(false);
+
+  const refreshFromCloud = async () => {
+    if (!isSupabaseConfigured || !supabase || refreshingRef.current) return;
+    refreshingRef.current = true;
+
+    try {
+      const s = store as any;
+
+      // Supabase is the source of truth. Do not let demo/localStorage rows
+      // survive when a cloud table is empty.
+      const cloudKeys = [
+        'fh_profiles',
+        'fh_locations',
+        'fh_posts',
+        'fh_albums',
+        'fh_photos',
+        'fh_events',
+        'fh_notifications',
+        'fh_reports',
+        'fh_invitations',
+        'fh_settings',
+        'fh_activity_logs',
+        'fh_search_logs',
+      ];
+      cloudKeys.forEach((key) => localStorage.removeItem(key));
+
+      s.profiles = [];
+      s.locations = [];
+      s.posts = [];
+      s.albums = [];
+      s.photos = [];
+      s.events = [];
+      s.notifications = [];
+      s.reports = [];
+      s.invitations = [];
+      s.activity_logs = [];
+      s.search_logs = [];
+
+      await store.fetchFromSupabase();
+
+      // Load relational/secondary tables and attach them to their parent
+      // records so the UI updates immediately without a page refresh.
+      const [
+        likesRes,
+        commentsRes,
+        rsvpRes,
+        albumsRes,
+        notificationsRes,
+        invitationsRes,
+        reportsRes,
+        settingsRes,
+      ] = await Promise.all([
+        supabase.from('post_likes').select('*'),
+        supabase.from('post_comments').select('*').order('created_at', { ascending: true }),
+        supabase.from('event_rsvps').select('*'),
+        supabase.from('albums').select('*').order('created_at', { ascending: false }),
+        supabase.from('notifications').select('*').order('created_at', { ascending: false }),
+        supabase.from('invitations').select('*').order('created_at', { ascending: false }),
+        supabase.from('reports').select('*').order('created_at', { ascending: false }),
+        supabase.from('community_settings').select('*').limit(1),
+      ]);
+
+      const likes = likesRes.data || [];
+      const comments = commentsRes.data || [];
+      const rsvps = rsvpRes.data || [];
+
+      s.posts = (s.posts || []).map((post: any) => ({
+        ...post,
+        likes: likes.filter((like: any) => like.post_id === post.id),
+        comments: comments.filter((comment: any) => comment.post_id === post.id),
+      }));
+
+      s.events = (s.events || []).map((event: any) => ({
+        ...event,
+        attendees: rsvps.filter((rsvp: any) => rsvp.event_id === event.id),
+      }));
+
+      s.albums = albumsRes.data || [];
+      s.notifications = notificationsRes.data || [];
+      s.invitations = invitationsRes.data || [];
+      s.reports = reportsRes.data || [];
+      if (settingsRes.data?.[0]) {
+        s.settings = settingsRes.data[0];
+      }
+
+      localStorage.setItem('fh_posts', JSON.stringify(s.posts));
+      localStorage.setItem('fh_events', JSON.stringify(s.events));
+      localStorage.setItem('fh_albums', JSON.stringify(s.albums));
+      localStorage.setItem('fh_notifications', JSON.stringify(s.notifications));
+      localStorage.setItem('fh_invitations', JSON.stringify(s.invitations));
+      localStorage.setItem('fh_reports', JSON.stringify(s.reports));
+      localStorage.setItem('fh_settings', JSON.stringify(s.settings));
+
+      // Notify every subscribed React context/component once the complete
+      // snapshot has been assembled.
+      s.notify();
+    } catch (error) {
+      console.warn('[Realtime] Cloud refresh failed:', error);
+    } finally {
+      refreshingRef.current = false;
+    }
+  };
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
 
+    const s = store as any;
+
+    // Disable the legacy /api/sync polling loop. It can overwrite the fresh
+    // Supabase state and was the main cause of different browsers showing
+    // different data.
+    if (s.syncTimer) {
+      clearInterval(s.syncTimer);
+      s.syncTimer = null;
+    }
+    s.syncWithServer = async () => false;
+
     const scheduleRefresh = () => {
       if (refreshTimerRef.current) return;
-      refreshTimerRef.current = setTimeout(async () => {
+      refreshTimerRef.current = setTimeout(() => {
         refreshTimerRef.current = null;
-        await store.fetchFromSupabase();
-      }, 80);
+        void refreshFromCloud();
+      }, 100);
     };
 
-    // Initial authoritative cloud read.
-    store.fetchFromSupabase();
+    void refreshFromCloud();
 
     const channel = supabase
-      .channel('fh-global-realtime')
+      .channel(`fh-global-realtime-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public' }, scheduleRefresh)
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          scheduleRefresh();
+          void refreshFromCloud();
         }
       });
 
