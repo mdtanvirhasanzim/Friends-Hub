@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LocationProvider, useLocationContext } from './context/LocationContext';
 import { NotificationProvider, useNotifications } from './context/NotificationContext';
@@ -14,6 +14,55 @@ import { NotificationsView } from './components/notifications/NotificationsView'
 import { ProfileView } from './components/profile/ProfileView';
 import { SettingsView } from './components/settings/SettingsView';
 import { AdminDashboard } from './components/admin/AdminDashboard';
+import { supabase, isSupabaseConfigured } from './lib/supabase';
+import { store } from './lib/storage';
+
+/**
+ * One application-wide realtime bridge.
+ *
+ * DataStore already subscribes to Supabase Realtime, but some child tables
+ * (likes/comments/RSVPs) are relational records and therefore do not change
+ * the parent post/event row. This bridge makes every public-table change cause
+ * a fresh cloud read, so every open browser converges on the same Supabase
+ * state immediately.
+ */
+const RealtimeSync: React.FC = () => {
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+
+    const scheduleRefresh = () => {
+      if (refreshTimerRef.current) return;
+      refreshTimerRef.current = setTimeout(async () => {
+        refreshTimerRef.current = null;
+        await store.fetchFromSupabase();
+      }, 80);
+    };
+
+    // Initial authoritative cloud read.
+    store.fetchFromSupabase();
+
+    const channel = supabase
+      .channel('fh-global-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public' }, scheduleRefresh)
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          scheduleRefresh();
+        }
+      });
+
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  return null;
+};
 
 const MainAppContent: React.FC = () => {
   const { currentUser, isLoading } = useAuth();
@@ -37,9 +86,7 @@ const MainAppContent: React.FC = () => {
   }
 
   const handleOpenMapWithCoords = (coords?: { lat: number; lng: number }) => {
-    if (coords) {
-      setTargetMapCoords(coords);
-    }
+    if (coords) setTargetMapCoords(coords);
     setActiveTab('map');
   };
 
@@ -50,15 +97,11 @@ const MainAppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#050505] text-[#f0f0f0] flex flex-col antialiased selection:bg-indigo-600/30 selection:text-indigo-200">
-      {/* Top Fixed Navbar */}
       <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
 
-      {/* Main Workspace Layout (Sidebar + Center Content) */}
       <div className="flex-1 flex max-w-7xl w-full mx-auto pb-20 md:pb-6">
-        {/* Left Sidebar (Desktop) */}
         <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
 
-        {/* Dynamic Center Canvas View */}
         <main className="flex-1 min-w-0 overflow-y-auto">
           {activeTab === 'map' && (
             <LiveMap
@@ -96,9 +139,7 @@ const MainAppContent: React.FC = () => {
           )}
 
           {activeTab === 'profile' && <ProfileView />}
-
           {activeTab === 'settings' && <SettingsView />}
-
           {activeTab === 'admin' && <AdminDashboard />}
         </main>
       </div>
@@ -111,6 +152,7 @@ export default function App() {
     <AuthProvider>
       <LocationProvider>
         <NotificationProvider>
+          <RealtimeSync />
           <MainAppContent />
         </NotificationProvider>
       </LocationProvider>
