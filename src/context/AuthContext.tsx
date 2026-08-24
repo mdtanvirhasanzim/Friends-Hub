@@ -70,7 +70,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data, error } = await supabase.from('profiles').upsert(fallback, { onConflict: 'id' }).select().single();
     if (error) {
       console.warn('[Auth] Could not create missing profile:', error.message);
-      // Keep the authenticated session usable even if profile creation is blocked by RLS.
       return fallback;
     }
     return data as UserProfile;
@@ -89,12 +88,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       });
     presenceChannelRef.current = channel;
-    // profiles.online_status is a boolean in the production schema.
     void supabase.from('profiles').update({ online_status: true, last_seen: new Date().toISOString() }).eq('id', user.id);
   }, []);
 
   useEffect(() => {
     let mounted = true;
+    const applyAuthenticatedProfile = (profile: UserProfile) => {
+      setCurrentUser(profile);
+      // Keep the local store in sync with the authoritative Supabase profile.
+      // Otherwise a stale cached role (e.g. "member") can overwrite an updated
+      // database role (e.g. "admin") immediately after login.
+      store.addProfile(profile);
+      localStorage.setItem('fh_active_user_id', profile.id);
+      localStorage.removeItem('fh_explicit_logout');
+      setupPresence(profile);
+    };
+
     const initialize = async () => {
       if (!isSupabaseConfigured || !supabase) {
         setCurrentUser(null);
@@ -105,11 +114,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!mounted) return;
       if (session?.user) {
         const profile = await ensureProfile(session.user);
-        if (profile && mounted) {
-          setCurrentUser(profile);
-          localStorage.setItem('fh_active_user_id', profile.id);
-          setupPresence(profile);
-        }
+        if (profile && mounted) applyAuthenticatedProfile(profile);
       }
       setLoading(false);
     };
@@ -121,12 +126,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!mounted) return;
         if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session?.user) {
           const profile = await ensureProfile(session.user);
-          if (profile && mounted) {
-            setCurrentUser(profile);
-            localStorage.setItem('fh_active_user_id', profile.id);
-            localStorage.removeItem('fh_explicit_logout');
-            setupPresence(profile);
-          }
+          if (profile && mounted) applyAuthenticatedProfile(profile);
         } else if (event === 'SIGNED_OUT') {
           setCurrentUser(null);
           localStorage.removeItem('fh_active_user_id');
@@ -136,7 +136,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const unsubscribeStore = store.subscribe(() => {
-      if (!mounted) return;
+      if (!mounted || isSupabaseConfigured) return;
       const currentId = localStorage.getItem('fh_active_user_id');
       if (currentId) {
         const fresh = store.getProfile(currentId);
@@ -197,9 +197,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, error: 'Authentication succeeded, but the account profile could not be prepared.' };
       }
 
-      // Do NOT sign out based on nullable/legacy profile flags. Authentication is
-      // controlled by Supabase Auth; profile status is application metadata.
       setCurrentUser(profile);
+      store.addProfile(profile);
       localStorage.setItem('fh_active_user_id', profile.id);
       localStorage.removeItem('fh_explicit_logout');
       setupPresence(profile);
