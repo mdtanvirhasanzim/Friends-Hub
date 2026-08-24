@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { UserProfile } from '../types';
 import { store } from '../lib/storage';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
@@ -8,7 +8,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   loading: boolean;
-  isLoading: boolean; // Alias for compatibility
+  isLoading: boolean;
   login: (emailOrUsername: string, password?: string) => Promise<{ success: boolean; error?: string }>;
   register: (data: {
     email: string;
@@ -29,32 +29,29 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const DEMO_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80';
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
   const presenceChannelRef = useRef<any>(null);
 
-  // Sync profile from Supabase or Fallback Store
   const fetchProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
-    if (isSupabaseConfigured && supabase) {
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .single();
+    if (!isSupabaseConfigured || !supabase || !userId) return null;
 
-        if (data && !error) {
-          return data as UserProfile;
-        }
-      } catch (err) {
-        console.warn('[AuthContext] Error fetching Supabase profile:', err);
-      }
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[Auth] Profile fetch failed:', error.message);
+      return null;
     }
-    return store.getProfile(userId) || null;
+    return data as UserProfile | null;
   }, []);
 
-  // Set up Supabase Presence & Online/Offline status tracker
   const setupPresence = useCallback((user: UserProfile) => {
     if (!isSupabaseConfigured || !supabase) return;
 
@@ -63,19 +60,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const channel = supabase.channel('online-members', {
-      config: {
-        presence: {
-          key: user.id,
-        },
-      },
+      config: { presence: { key: user.id } },
     });
 
     channel
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState();
-        const onlineUserIds = Object.keys(state);
-        // Sync online status in store
-        store.syncOnlinePresence(onlineUserIds);
+        store.syncOnlinePresence(Object.keys(state));
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
@@ -89,107 +80,81 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     presenceChannelRef.current = channel;
 
-    // Update online status in database
-    supabase
+    void supabase
       .from('profiles')
       .update({ online_status: 'online', last_seen: new Date().toISOString() })
-      .eq('id', user.id)
-      .then();
+      .eq('id', user.id);
   }, []);
 
-  // Initialize Session
   useEffect(() => {
-    let isMounted = true;
+    let mounted = true;
 
-    async function initAuth() {
-      if (isSupabaseConfigured && supabase) {
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) {
-            const profile = await fetchProfile(session.user.id);
-            if (profile && isMounted) {
-              setCurrentUser(profile);
-              localStorage.setItem('fh_active_user_id', profile.id);
-              setupPresence(profile);
-              setLoading(false);
-              return;
-            }
-          }
-        } catch (err) {
-          console.warn('[Auth] Supabase session check error:', err);
-        }
+    const initialize = async () => {
+      if (!isSupabaseConfigured || !supabase) {
+        setCurrentUser(null);
+        setLoading(false);
+        return;
       }
 
-      // If no Supabase user or fallback mode, check local store
-      if (isMounted) {
-        const savedUserId = localStorage.getItem('fh_active_user_id');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!mounted) return;
 
-        if (savedUserId) {
-          const found = store.getProfile(savedUserId);
-          if (found && found.is_active && found.status !== 'suspended') {
-            setCurrentUser(found);
-          } else {
-            localStorage.removeItem('fh_active_user_id');
-            setCurrentUser(null);
-          }
-        } else {
-          setCurrentUser(null);
+      if (session?.user) {
+        const profile = await fetchProfile(session.user.id);
+        if (profile && mounted) {
+          setCurrentUser(profile);
+          localStorage.setItem('fh_active_user_id', profile.id);
+          setupPresence(profile);
         }
       }
+      setLoading(false);
+    };
 
-      if (isMounted) setLoading(false);
-    }
+    void initialize();
 
-    initAuth();
-
-    // Supabase Auth State Change Listener
-    let authListenerSub: any = null;
+    let authSubscription: { unsubscribe: () => void } | null = null;
     if (isSupabaseConfigured && supabase) {
-      const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (!mounted) return;
+
         if (event === 'SIGNED_IN' && session?.user) {
           const profile = await fetchProfile(session.user.id);
-          if (profile && isMounted) {
+          if (profile && mounted) {
             setCurrentUser(profile);
             localStorage.setItem('fh_active_user_id', profile.id);
             localStorage.removeItem('fh_explicit_logout');
             setupPresence(profile);
           }
-        } else if (event === 'SIGNED_OUT') {
-          if (isMounted) {
-            setCurrentUser(null);
-            localStorage.removeItem('fh_active_user_id');
-          }
+        }
+
+        if (event === 'SIGNED_OUT' && mounted) {
+          setCurrentUser(null);
+          localStorage.removeItem('fh_active_user_id');
         }
       });
-      authListenerSub = authListener.subscription;
+      authSubscription = data.subscription;
     }
 
-    // Subscribe to store updates
-    const unsubStore = store.subscribe(() => {
-      if (!isMounted) return;
-      const currentId = localStorage.getItem('fh_active_user_id');
-      if (currentId) {
-        const fresh = store.getProfile(currentId);
-        if (fresh) setCurrentUser(fresh);
-      }
+    const unsubscribeStore = store.subscribe(() => {
+      if (!mounted || !currentUser) return;
+      const fresh = store.getProfile(currentUser.id);
+      if (fresh) setCurrentUser(fresh);
     });
 
-    // Window beforeunload presence cleanup
     const handleUnload = () => {
       if (currentUser && isSupabaseConfigured && supabase) {
-        supabase
+        void supabase
           .from('profiles')
           .update({ online_status: 'offline', last_seen: new Date().toISOString() })
-          .eq('id', currentUser.id)
-          .then();
+          .eq('id', currentUser.id);
       }
     };
     window.addEventListener('beforeunload', handleUnload);
 
     return () => {
-      isMounted = false;
-      if (authListenerSub) authListenerSub.unsubscribe();
-      unsubStore();
+      mounted = false;
+      authSubscription?.unsubscribe();
+      unsubscribeStore();
       window.removeEventListener('beforeunload', handleUnload);
       if (presenceChannelRef.current && supabase) {
         supabase.removeChannel(presenceChannelRef.current);
@@ -197,70 +162,69 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [fetchProfile, setupPresence]);
 
-  // Login handler
-  const login = async (emailOrUsername: string, password?: string): Promise<{ success: boolean; error?: string }> => {
+  const login = async (emailOrUsername: string, password?: string) => {
     setLoading(true);
-    const identifier = emailOrUsername.trim().toLowerCase();
 
-    // If Supabase is active, attempt Supabase Auth first
-    if (isSupabaseConfigured && supabase) {
-      try {
-        let emailToUse = identifier;
-
-        if (!identifier.includes('@')) {
-          const { data: profileByUsername } = await supabase
-            .from('profiles')
-            .select('id, email')
-            .ilike('username', identifier)
-            .maybeSingle();
-
-          if (profileByUsername?.email) {
-            emailToUse = profileByUsername.email;
-          }
-        }
-
-        if (password) {
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email: emailToUse,
-            password: password,
-          });
-
-          if (!error && data.user) {
-            const profile = await fetchProfile(data.user.id);
-            if (profile) {
-              setCurrentUser(profile);
-              localStorage.setItem('fh_active_user_id', profile.id);
-              localStorage.removeItem('fh_explicit_logout');
-              setupPresence(profile);
-              setLoading(false);
-              return { success: true };
-            }
-          }
-        }
-      } catch (err: any) {
-        console.warn('[Auth] Supabase auth attempt fallback to server:', err);
-      }
+    if (!isSupabaseConfigured || !supabase) {
+      setLoading(false);
+      return { success: false, error: 'Supabase is not configured. Connect the production database first.' };
     }
 
-    // Seamless Fallback store & backend database login
+    if (!password) {
+      setLoading(false);
+      return { success: false, error: 'Password is required.' };
+    }
+
     try {
-      const res = await store.loginUser(identifier, password);
-      if (res.success && res.profile) {
-        setCurrentUser(res.profile);
-        localStorage.setItem('fh_active_user_id', res.profile.id);
-        localStorage.removeItem('fh_explicit_logout');
-        setLoading(false);
-        return { success: true };
+      const identifier = emailOrUsername.trim().toLowerCase();
+      let email = identifier;
+
+      if (!identifier.includes('@')) {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('email')
+          .ilike('username', identifier)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (!profile?.email) {
+          setLoading(false);
+          return { success: false, error: 'Account not found.' };
+        }
+        email = profile.email;
       }
+
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error || !data.user) {
+        setLoading(false);
+        return { success: false, error: error?.message || 'Login failed.' };
+      }
+
+      const profile = await fetchProfile(data.user.id);
+      if (!profile) {
+        await supabase.auth.signOut();
+        setLoading(false);
+        return { success: false, error: 'Authentication succeeded, but your FriendsHub profile is missing.' };
+      }
+
+      if (!profile.is_active || profile.status === 'suspended') {
+        await supabase.auth.signOut();
+        setLoading(false);
+        return { success: false, error: 'Your account is suspended. Please contact circle management.' };
+      }
+
+      setCurrentUser(profile);
+      localStorage.setItem('fh_active_user_id', profile.id);
+      localStorage.removeItem('fh_explicit_logout');
+      setupPresence(profile);
       setLoading(false);
-      return { success: false, error: res.error || 'Invalid email/username or password. Please try again.' };
-    } catch (err: any) {
+      return { success: true };
+    } catch (error: any) {
       setLoading(false);
-      return { success: false, error: err.message || 'Login failed' };
+      return { success: false, error: error?.message || 'Login failed.' };
     }
   };
 
-  // Register handler
   const register = async (data: {
     email: string;
     username: string;
@@ -270,209 +234,176 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     bio?: string;
     phone?: string;
     invite_code?: string;
-  }): Promise<{ success: boolean; error?: string }> => {
+  }) => {
     setLoading(true);
+
+    if (!isSupabaseConfigured || !supabase) {
+      setLoading(false);
+      return { success: false, error: 'Supabase is not configured. Connect the production database first.' };
+    }
+
     const cleanEmail = data.email.trim().toLowerCase();
     const cleanUsername = data.username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
 
-    // Validate invite code
-    const settings = store.getSettings();
-    if (!settings.allow_member_invites && data.invite_code !== settings.invite_code) {
-      setLoading(false);
-      return {
-        success: false,
-        error: 'Invalid community invite code. Please request an invite from a circle admin.',
-      };
-    }
-
-    // If Supabase is active
-    if (isSupabaseConfigured && supabase) {
-      try {
-        const { data: signUpData, error } = await supabase.auth.signUp({
-          email: cleanEmail,
-          password: data.password || 'FriendsHub2026!',
-          options: {
-            data: {
-              username: cleanUsername,
-              full_name: data.full_name.trim(),
-              avatar_url: data.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-              bio: data.bio || 'New member in FriendsHub! 👋',
-              phone: data.phone,
-              invite_code: data.invite_code,
-              role: 'member',
-              location_sharing_enabled: true,
-            },
-          },
-        });
-
-        if (error) {
-          setLoading(false);
-          return { success: false, error: error.message };
-        }
-
-        if (signUpData.user) {
-          // Allow database trigger to populate profile, with resilient fallback
-          let profile = await fetchProfile(signUpData.user.id);
-          if (!profile) {
-            await new Promise((r) => setTimeout(r, 250));
-            profile = await fetchProfile(signUpData.user.id);
-          }
-
-          if (!profile) {
-            const newProfileObj: UserProfile = {
-              id: signUpData.user.id,
-              email: cleanEmail,
-              username: cleanUsername,
-              full_name: data.full_name.trim(),
-              avatar_url: data.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-              bio: data.bio || 'Friend in the circle 👋',
-              role: 'member',
-              is_active: true,
-              status: 'active',
-              location_sharing_enabled: true,
-              privacy_mode: 'exact',
-              online_status: 'online',
-              last_seen: new Date().toISOString(),
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              phone: data.phone,
-            };
-            await supabase.from('profiles').upsert(newProfileObj);
-            profile = newProfileObj;
-          }
-
-          store.addProfile(profile);
-          setCurrentUser(profile);
-          localStorage.setItem('fh_active_user_id', profile.id);
-          setupPresence(profile);
-
-          // Post welcome message
-          store.createPost({
-            user_id: profile.id,
-            content: `👋 Hey everyone! I just joined FriendsHub from my device. Excited to connect!`,
-            post_type: 'post',
-          });
-
-          setLoading(false);
-          return { success: true };
-        }
-      } catch (err: any) {
-        console.warn('[Auth] Supabase registration error:', err);
-      }
-    }
-
-    // Fallback store registration
     try {
-      const res = await store.registerUser({
-        full_name: data.full_name,
-        username: cleanUsername,
+      const { data: settings } = await supabase
+        .from('community_settings')
+        .select('allow_registration, allow_member_invites, invite_code')
+        .limit(1)
+        .maybeSingle();
+
+      if (settings?.allow_registration === false) {
+        setLoading(false);
+        return { success: false, error: 'Registration is currently disabled by the community admin.' };
+      }
+
+      if (settings?.allow_member_invites === false && data.invite_code !== settings?.invite_code) {
+        setLoading(false);
+        return { success: false, error: 'A valid community invite code is required.' };
+      }
+
+      const password = data.password || 'FriendsHub2026!';
+      const { data: signUpData, error } = await supabase.auth.signUp({
         email: cleanEmail,
-        password: data.password,
-        avatar_url: data.avatar_url,
-        bio: data.bio,
-        phone: data.phone,
-        invite_code: data.invite_code,
-        role: 'member',
-        location_sharing_enabled: true,
+        password,
+        options: {
+          data: {
+            username: cleanUsername,
+            full_name: data.full_name.trim(),
+            avatar_url: data.avatar_url || DEMO_AVATAR,
+            bio: data.bio || 'New member in FriendsHub! 👋',
+            phone: data.phone,
+            invite_code: data.invite_code,
+            role: 'member',
+            location_sharing_enabled: true,
+          },
+        },
       });
 
-      if (!res.success || !res.profile) {
+      if (error || !signUpData.user) {
         setLoading(false);
-        return { success: false, error: res.error || 'Registration failed' };
+        return { success: false, error: error?.message || 'Registration failed.' };
       }
 
-      setCurrentUser(res.profile);
-      localStorage.setItem('fh_active_user_id', res.profile.id);
+      let profile = await fetchProfile(signUpData.user.id);
 
+      // The SQL trigger normally creates the profile. If a session exists but
+      // the trigger was not installed, create the profile using the Auth UUID.
+      if (!profile && signUpData.session) {
+        const profileData: UserProfile = {
+          id: signUpData.user.id,
+          email: cleanEmail,
+          username: cleanUsername,
+          full_name: data.full_name.trim(),
+          avatar_url: data.avatar_url || DEMO_AVATAR,
+          bio: data.bio || 'Friend in the circle 👋',
+          role: 'member',
+          is_active: true,
+          status: 'active',
+          location_sharing_enabled: true,
+          privacy_mode: 'exact',
+          online_status: 'online',
+          last_seen: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          phone: data.phone,
+          external_user_id: `usr-${cleanUsername}-${Date.now().toString(36)}`,
+        };
+
+        const { data: inserted, error: insertError } = await supabase
+          .from('profiles')
+          .insert(profileData)
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+        profile = inserted as UserProfile;
+      }
+
+      if (!profile) {
+        setLoading(false);
+        return {
+          success: true,
+          error: 'Account created. Please verify your email, then log in. Your profile will be created automatically by Supabase.',
+        };
+      }
+
+      store.addProfile(profile);
+      setCurrentUser(profile);
+      localStorage.setItem('fh_active_user_id', profile.id);
+      setupPresence(profile);
+
+      // This post is written through the same Supabase-backed DataStore as all
+      // other community content, so every connected browser receives it.
       store.createPost({
-        user_id: res.profile.id,
-        content: `👋 Hey everyone! I just joined FriendsHub from my device. Excited to connect!`,
+        user_id: profile.id,
+        content: '👋 Hey everyone! I just joined FriendsHub from my device. Excited to connect!',
         post_type: 'post',
       });
 
       setLoading(false);
       return { success: true };
-    } catch (err: any) {
+    } catch (error: any) {
       setLoading(false);
-      return { success: false, error: err.message || 'Registration failed' };
+      return { success: false, error: error?.message || 'Registration failed.' };
     }
   };
 
-  // Logout handler
   const logout = async () => {
-    if (currentUser) {
-      if (isSupabaseConfigured && supabase) {
-        try {
-          await supabase
-            .from('profiles')
-            .update({ online_status: 'offline', last_seen: new Date().toISOString() })
-            .eq('id', currentUser.id);
-          await supabase.auth.signOut();
-        } catch (err) {
-          console.warn('[Auth] SignOut error:', err);
-        }
-      }
-      store.logoutUser(currentUser.id);
+    if (currentUser && isSupabaseConfigured && supabase) {
+      await supabase
+        .from('profiles')
+        .update({ online_status: 'offline', last_seen: new Date().toISOString() })
+        .eq('id', currentUser.id);
+      await supabase.auth.signOut();
     }
+
     if (presenceChannelRef.current && supabase) {
       supabase.removeChannel(presenceChannelRef.current);
+      presenceChannelRef.current = null;
     }
+
     localStorage.removeItem('fh_active_user_id');
     setCurrentUser(null);
   };
 
-  // Reset password handler
   const resetPassword = async (email: string) => {
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin,
-      });
-      if (error) return { success: false, error: error.message };
-      return { success: true, message: `Password reset instructions dispatched to ${email}.` };
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: false, error: 'Supabase is not configured.' };
     }
 
-    const exists = store.getProfiles().some((p) => p.email.toLowerCase() === email.toLowerCase());
-    if (!exists) {
-      return { success: false, error: 'No member found registered with this email address.' };
-    }
-    return {
-      success: true,
-      message: `Password reset link sent to ${email}. Check your inbox.`,
-    };
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      redirectTo: window.location.origin,
+    });
+    if (error) return { success: false, error: error.message };
+    return { success: true, message: `Password reset instructions sent to ${email}.` };
   };
 
-  // Update current user profile
   const updateCurrentUser = async (updates: Partial<UserProfile>) => {
-    if (!currentUser) return;
+    if (!currentUser || !isSupabaseConfigured || !supabase) return;
 
-    if (isSupabaseConfigured && supabase) {
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .update({ ...updates, updated_at: new Date().toISOString() })
-          .eq('id', currentUser.id)
-          .select()
-          .single();
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', currentUser.id)
+      .select()
+      .single();
 
-        if (data && !error) {
-          setCurrentUser(data as UserProfile);
-        }
-      } catch (err) {
-        console.warn('[Auth] Update profile Supabase error:', err);
-      }
+    if (error) throw error;
+    if (data) {
+      store.addProfile(data as UserProfile);
+      setCurrentUser(data as UserProfile);
     }
-
-    const updated = store.updateProfile(currentUser.id, updates);
-    setCurrentUser(updated);
   };
 
-  // Switch demo user (for fast multi-account testing)
   const switchUser = (userId: string) => {
+    // Kept only for development/demo UI. Production authentication remains
+    // Supabase Auth and cannot be switched by changing localStorage.
+    if (isSupabaseConfigured) return;
     const profile = store.getProfile(userId);
     if (profile) {
       setCurrentUser(profile);
       localStorage.setItem('fh_active_user_id', userId);
-      setupPresence(profile);
     }
   };
 
@@ -500,8 +431,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };
