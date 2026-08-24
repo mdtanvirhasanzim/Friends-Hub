@@ -10,16 +10,7 @@ interface AuthContextType {
   loading: boolean;
   isLoading: boolean;
   login: (emailOrUsername: string, password?: string) => Promise<{ success: boolean; error?: string }>;
-  register: (data: {
-    email: string;
-    username: string;
-    full_name: string;
-    password?: string;
-    avatar_url?: string;
-    bio?: string;
-    phone?: string;
-    invite_code?: string;
-  }) => Promise<{ success: boolean; error?: string }>;
+  register: (data: { email: string; username: string; full_name: string; password?: string; avatar_url?: string; bio?: string; phone?: string; invite_code?: string }) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   updateCurrentUser: (updates: Partial<UserProfile>) => Promise<void>;
@@ -28,7 +19,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
 const DEMO_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -38,13 +28,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
     if (!isSupabaseConfigured || !supabase || !userId) return null;
-
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
-
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
     if (error) {
       console.warn('[Auth] Profile fetch failed:', error.message);
       return null;
@@ -54,51 +38,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const setupPresence = useCallback((user: UserProfile) => {
     if (!isSupabaseConfigured || !supabase) return;
+    if (presenceChannelRef.current) supabase.removeChannel(presenceChannelRef.current);
 
-    if (presenceChannelRef.current) {
-      supabase.removeChannel(presenceChannelRef.current);
-    }
-
-    const channel = supabase.channel('online-members', {
-      config: { presence: { key: user.id } },
-    });
-
+    const channel = supabase.channel('online-members', { config: { presence: { key: user.id } } });
     channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState();
-        store.syncOnlinePresence(Object.keys(state));
-      })
+      .on('presence', { event: 'sync' }, () => store.syncOnlinePresence(Object.keys(channel.presenceState())))
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
-          await channel.track({
-            user_id: user.id,
-            user_name: user.full_name,
-            online_at: new Date().toISOString(),
-          });
+          await channel.track({ user_id: user.id, user_name: user.full_name, online_at: new Date().toISOString() });
         }
       });
-
     presenceChannelRef.current = channel;
-
-    void supabase
-      .from('profiles')
-      .update({ online_status: 'online', last_seen: new Date().toISOString() })
-      .eq('id', user.id);
+    void supabase.from('profiles').update({ online_status: 'online', last_seen: new Date().toISOString() }).eq('id', user.id);
   }, []);
 
   useEffect(() => {
     let mounted = true;
-
     const initialize = async () => {
       if (!isSupabaseConfigured || !supabase) {
         setCurrentUser(null);
         setLoading(false);
         return;
       }
-
       const { data: { session } } = await supabase.auth.getSession();
       if (!mounted) return;
-
       if (session?.user) {
         const profile = await fetchProfile(session.user.id);
         if (profile && mounted) {
@@ -109,14 +72,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       setLoading(false);
     };
-
     void initialize();
 
     let authSubscription: { unsubscribe: () => void } | null = null;
     if (isSupabaseConfigured && supabase) {
       const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (!mounted) return;
-
         if (event === 'SIGNED_IN' && session?.user) {
           const profile = await fetchProfile(session.user.id);
           if (profile && mounted) {
@@ -125,9 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             localStorage.removeItem('fh_explicit_logout');
             setupPresence(profile);
           }
-        }
-
-        if (event === 'SIGNED_OUT' && mounted) {
+        } else if (event === 'SIGNED_OUT') {
           setCurrentUser(null);
           localStorage.removeItem('fh_active_user_id');
         }
@@ -136,17 +95,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const unsubscribeStore = store.subscribe(() => {
-      if (!mounted || !currentUser) return;
-      const fresh = store.getProfile(currentUser.id);
-      if (fresh) setCurrentUser(fresh);
+      if (!mounted) return;
+      const currentId = localStorage.getItem('fh_active_user_id');
+      if (currentId) {
+        const fresh = store.getProfile(currentId);
+        if (fresh) setCurrentUser(fresh);
+      }
     });
 
     const handleUnload = () => {
-      if (currentUser && isSupabaseConfigured && supabase) {
-        void supabase
-          .from('profiles')
-          .update({ online_status: 'offline', last_seen: new Date().toISOString() })
-          .eq('id', currentUser.id);
+      const currentId = localStorage.getItem('fh_active_user_id');
+      if (currentId && isSupabaseConfigured && supabase) {
+        void supabase.from('profiles').update({ online_status: 'offline', last_seen: new Date().toISOString() }).eq('id', currentId);
       }
     };
     window.addEventListener('beforeunload', handleUnload);
@@ -156,20 +116,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       authSubscription?.unsubscribe();
       unsubscribeStore();
       window.removeEventListener('beforeunload', handleUnload);
-      if (presenceChannelRef.current && supabase) {
-        supabase.removeChannel(presenceChannelRef.current);
-      }
+      if (presenceChannelRef.current && supabase) supabase.removeChannel(presenceChannelRef.current);
     };
   }, [fetchProfile, setupPresence]);
 
   const login = async (emailOrUsername: string, password?: string) => {
     setLoading(true);
-
     if (!isSupabaseConfigured || !supabase) {
       setLoading(false);
       return { success: false, error: 'Supabase is not configured. Connect the production database first.' };
     }
-
     if (!password) {
       setLoading(false);
       return { success: false, error: 'Password is required.' };
@@ -178,14 +134,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const identifier = emailOrUsername.trim().toLowerCase();
       let email = identifier;
-
       if (!identifier.includes('@')) {
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('email')
-          .ilike('username', identifier)
-          .maybeSingle();
-
+        const { data: profile, error } = await supabase.from('profiles').select('email').ilike('username', identifier).maybeSingle();
         if (error) throw error;
         if (!profile?.email) {
           setLoading(false);
@@ -199,20 +149,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false);
         return { success: false, error: error?.message || 'Login failed.' };
       }
-
       const profile = await fetchProfile(data.user.id);
       if (!profile) {
         await supabase.auth.signOut();
         setLoading(false);
         return { success: false, error: 'Authentication succeeded, but your FriendsHub profile is missing.' };
       }
-
       if (!profile.is_active || profile.status === 'suspended') {
         await supabase.auth.signOut();
         setLoading(false);
         return { success: false, error: 'Your account is suspended. Please contact circle management.' };
       }
-
       setCurrentUser(profile);
       localStorage.setItem('fh_active_user_id', profile.id);
       localStorage.removeItem('fh_explicit_logout');
@@ -225,18 +172,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (data: {
-    email: string;
-    username: string;
-    full_name: string;
-    password?: string;
-    avatar_url?: string;
-    bio?: string;
-    phone?: string;
-    invite_code?: string;
-  }) => {
+  const register = async (data: { email: string; username: string; full_name: string; password?: string; avatar_url?: string; bio?: string; phone?: string; invite_code?: string }) => {
     setLoading(true);
-
     if (!isSupabaseConfigured || !supabase) {
       setLoading(false);
       return { success: false, error: 'Supabase is not configured. Connect the production database first.' };
@@ -246,26 +183,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const cleanUsername = data.username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
 
     try {
-      const { data: settings } = await supabase
-        .from('community_settings')
-        .select('allow_registration, allow_member_invites, invite_code')
-        .limit(1)
-        .maybeSingle();
-
+      const { data: settings } = await supabase.from('community_settings').select('allow_registration, allow_member_invites, invite_code').limit(1).maybeSingle();
       if (settings?.allow_registration === false) {
         setLoading(false);
         return { success: false, error: 'Registration is currently disabled by the community admin.' };
       }
-
       if (settings?.allow_member_invites === false && data.invite_code !== settings?.invite_code) {
         setLoading(false);
         return { success: false, error: 'A valid community invite code is required.' };
       }
 
-      const password = data.password || 'FriendsHub2026!';
       const { data: signUpData, error } = await supabase.auth.signUp({
         email: cleanEmail,
-        password,
+        password: data.password || 'FriendsHub2026!',
         options: {
           data: {
             username: cleanUsername,
@@ -279,68 +209,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           },
         },
       });
-
       if (error || !signUpData.user) {
         setLoading(false);
         return { success: false, error: error?.message || 'Registration failed.' };
       }
 
       let profile = await fetchProfile(signUpData.user.id);
-
-      // The SQL trigger normally creates the profile. If a session exists but
-      // the trigger was not installed, create the profile using the Auth UUID.
       if (!profile && signUpData.session) {
-        const profileData: UserProfile = {
+        const profileData = {
           id: signUpData.user.id,
           email: cleanEmail,
           username: cleanUsername,
           full_name: data.full_name.trim(),
           avatar_url: data.avatar_url || DEMO_AVATAR,
           bio: data.bio || 'Friend in the circle 👋',
-          role: 'member',
+          role: 'member' as const,
           is_active: true,
-          status: 'active',
+          status: 'active' as const,
           location_sharing_enabled: true,
-          privacy_mode: 'exact',
-          online_status: 'online',
+          privacy_mode: 'exact' as const,
+          online_status: 'online' as const,
           last_seen: new Date().toISOString(),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           phone: data.phone,
           external_user_id: `usr-${cleanUsername}-${Date.now().toString(36)}`,
         };
-
-        const { data: inserted, error: insertError } = await supabase
-          .from('profiles')
-          .insert(profileData)
-          .select()
-          .single();
-
+        const { data: inserted, error: insertError } = await supabase.from('profiles').insert(profileData).select().single();
         if (insertError) throw insertError;
         profile = inserted as UserProfile;
       }
 
       if (!profile) {
         setLoading(false);
-        return {
-          success: true,
-          error: 'Account created. Please verify your email, then log in. Your profile will be created automatically by Supabase.',
-        };
+        return { success: true, error: 'Account created. Please verify your email, then log in.' };
       }
 
       store.addProfile(profile);
       setCurrentUser(profile);
       localStorage.setItem('fh_active_user_id', profile.id);
       setupPresence(profile);
-
-      // This post is written through the same Supabase-backed DataStore as all
-      // other community content, so every connected browser receives it.
-      store.createPost({
-        user_id: profile.id,
-        content: '👋 Hey everyone! I just joined FriendsHub from my device. Excited to connect!',
-        post_type: 'post',
-      });
-
+      store.createPost({ user_id: profile.id, content: '👋 Hey everyone! I just joined FriendsHub from my device. Excited to connect!', post_type: 'post' });
       setLoading(false);
       return { success: true };
     } catch (error: any) {
@@ -351,44 +260,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     if (currentUser && isSupabaseConfigured && supabase) {
-      await supabase
-        .from('profiles')
-        .update({ online_status: 'offline', last_seen: new Date().toISOString() })
-        .eq('id', currentUser.id);
+      await supabase.from('profiles').update({ online_status: 'offline', last_seen: new Date().toISOString() }).eq('id', currentUser.id);
       await supabase.auth.signOut();
     }
-
     if (presenceChannelRef.current && supabase) {
       supabase.removeChannel(presenceChannelRef.current);
       presenceChannelRef.current = null;
     }
-
     localStorage.removeItem('fh_active_user_id');
     setCurrentUser(null);
   };
 
   const resetPassword = async (email: string) => {
-    if (!isSupabaseConfigured || !supabase) {
-      return { success: false, error: 'Supabase is not configured.' };
-    }
-
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-      redirectTo: window.location.origin,
-    });
+    if (!isSupabaseConfigured || !supabase) return { success: false, error: 'Supabase is not configured.' };
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo: window.location.origin });
     if (error) return { success: false, error: error.message };
     return { success: true, message: `Password reset instructions sent to ${email}.` };
   };
 
   const updateCurrentUser = async (updates: Partial<UserProfile>) => {
     if (!currentUser || !isSupabaseConfigured || !supabase) return;
-
-    const { data, error } = await supabase
-      .from('profiles')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', currentUser.id)
-      .select()
-      .single();
-
+    const { data, error } = await supabase.from('profiles').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', currentUser.id).select().single();
     if (error) throw error;
     if (data) {
       store.addProfile(data as UserProfile);
@@ -397,8 +289,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const switchUser = (userId: string) => {
-    // Kept only for development/demo UI. Production authentication remains
-    // Supabase Auth and cannot be switched by changing localStorage.
     if (isSupabaseConfigured) return;
     const profile = store.getProfile(userId);
     if (profile) {
@@ -408,22 +298,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        currentUser,
-        isAuthenticated: Boolean(currentUser),
-        isAdmin: currentUser?.role === 'admin',
-        loading,
-        isLoading: loading,
-        login,
-        register,
-        logout,
-        resetPassword,
-        updateCurrentUser,
-        switchUser,
-        isSupabaseConnected: isSupabaseConfigured,
-      }}
-    >
+    <AuthContext.Provider value={{ currentUser, isAuthenticated: Boolean(currentUser), isAdmin: currentUser?.role === 'admin', loading, isLoading: loading, login, register, logout, resetPassword, updateCurrentUser, switchUser, isSupabaseConnected: isSupabaseConfigured }}>
       {children}
     </AuthContext.Provider>
   );
