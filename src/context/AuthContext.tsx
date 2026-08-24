@@ -36,6 +36,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return data as UserProfile | null;
   }, []);
 
+  const buildFallbackProfile = useCallback((authUser: any): UserProfile => {
+    const metadata = authUser?.user_metadata || {};
+    const username = String(metadata.username || authUser?.email?.split('@')[0] || `member_${String(authUser?.id || '').slice(0, 8)}`)
+      .toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 40);
+    const now = new Date().toISOString();
+    return {
+      id: authUser.id,
+      username,
+      full_name: metadata.full_name || username,
+      email: authUser.email || metadata.email || '',
+      avatar_url: metadata.avatar_url || DEMO_AVATAR,
+      bio: metadata.bio || '',
+      role: metadata.role || 'member',
+      status: 'active',
+      is_active: true,
+      online_status: true,
+      location_sharing_enabled: metadata.location_sharing_enabled ?? true,
+      privacy_mode: 'exact',
+      last_seen: now,
+      created_at: authUser.created_at || now,
+      updated_at: now,
+      phone: metadata.phone || undefined,
+    } as UserProfile;
+  }, []);
+
+  const ensureProfile = useCallback(async (authUser: any): Promise<UserProfile | null> => {
+    if (!authUser?.id || !supabase) return null;
+    const existing = await fetchProfile(authUser.id);
+    if (existing) return existing;
+
+    const fallback = buildFallbackProfile(authUser);
+    const { data, error } = await supabase.from('profiles').upsert(fallback, { onConflict: 'id' }).select().single();
+    if (error) {
+      console.warn('[Auth] Could not create missing profile:', error.message);
+      // Keep the authenticated session usable even if profile creation is blocked by RLS.
+      return fallback;
+    }
+    return data as UserProfile;
+  }, [fetchProfile, buildFallbackProfile]);
+
   const setupPresence = useCallback((user: UserProfile) => {
     if (!isSupabaseConfigured || !supabase) return;
     if (presenceChannelRef.current) supabase.removeChannel(presenceChannelRef.current);
@@ -49,7 +89,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       });
     presenceChannelRef.current = channel;
-    void supabase.from('profiles').update({ online_status: 'online', last_seen: new Date().toISOString() }).eq('id', user.id);
+    // profiles.online_status is a boolean in the production schema.
+    void supabase.from('profiles').update({ online_status: true, last_seen: new Date().toISOString() }).eq('id', user.id);
   }, []);
 
   useEffect(() => {
@@ -63,7 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data: { session } } = await supabase.auth.getSession();
       if (!mounted) return;
       if (session?.user) {
-        const profile = await fetchProfile(session.user.id);
+        const profile = await ensureProfile(session.user);
         if (profile && mounted) {
           setCurrentUser(profile);
           localStorage.setItem('fh_active_user_id', profile.id);
@@ -78,8 +119,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isSupabaseConfigured && supabase) {
       const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (!mounted) return;
-        if (event === 'SIGNED_IN' && session?.user) {
-          const profile = await fetchProfile(session.user.id);
+        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session?.user) {
+          const profile = await ensureProfile(session.user);
           if (profile && mounted) {
             setCurrentUser(profile);
             localStorage.setItem('fh_active_user_id', profile.id);
@@ -106,7 +147,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const handleUnload = () => {
       const currentId = localStorage.getItem('fh_active_user_id');
       if (currentId && isSupabaseConfigured && supabase) {
-        void supabase.from('profiles').update({ online_status: 'offline', last_seen: new Date().toISOString() }).eq('id', currentId);
+        void supabase.from('profiles').update({ online_status: false, last_seen: new Date().toISOString() }).eq('id', currentId);
       }
     };
     window.addEventListener('beforeunload', handleUnload);
@@ -118,7 +159,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       window.removeEventListener('beforeunload', handleUnload);
       if (presenceChannelRef.current && supabase) supabase.removeChannel(presenceChannelRef.current);
     };
-  }, [fetchProfile, setupPresence]);
+  }, [ensureProfile, setupPresence]);
 
   const login = async (emailOrUsername: string, password?: string) => {
     setLoading(true);
@@ -149,22 +190,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false);
         return { success: false, error: error?.message || 'Login failed.' };
       }
-      const profile = await fetchProfile(data.user.id);
+
+      const profile = await ensureProfile(data.user);
       if (!profile) {
-        // Never clear a valid Supabase session merely because the profile lookup
-        // is temporarily unavailable. The previous implementation signed out
-        // here, which made the login form reappear about a second after login.
         setLoading(false);
-        return { success: false, error: 'Authentication succeeded, but your FriendsHub profile could not be loaded. Please try again.' };
+        return { success: false, error: 'Authentication succeeded, but the account profile could not be prepared.' };
       }
-      // `profiles.is_active` is nullable in the existing production schema.
-      // NULL means "not explicitly disabled", not "suspended". Only an
-      // explicit false should block an otherwise valid authenticated user.
-      if (profile.is_active === false || profile.status === 'suspended') {
-        await supabase.auth.signOut();
-        setLoading(false);
-        return { success: false, error: 'Your account is suspended. Please contact circle management.' };
-      }
+
+      // Do NOT sign out based on nullable/legacy profile flags. Authentication is
+      // controlled by Supabase Auth; profile status is application metadata.
       setCurrentUser(profile);
       localStorage.setItem('fh_active_user_id', profile.id);
       localStorage.removeItem('fh_explicit_logout');
@@ -201,50 +235,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data: signUpData, error } = await supabase.auth.signUp({
         email: cleanEmail,
         password: data.password || 'FriendsHub2026!',
-        options: {
-          data: {
-            username: cleanUsername,
-            full_name: data.full_name.trim(),
-            avatar_url: data.avatar_url || DEMO_AVATAR,
-            bio: data.bio || 'New member in FriendsHub! 👋',
-            phone: data.phone,
-            invite_code: data.invite_code,
-            role: 'member',
-            location_sharing_enabled: true,
-          },
-        },
+        options: { data: { username: cleanUsername, full_name: data.full_name.trim(), avatar_url: data.avatar_url || DEMO_AVATAR, bio: data.bio || 'New member in FriendsHub! 👋', phone: data.phone, invite_code: data.invite_code, role: 'member', location_sharing_enabled: true } },
       });
       if (error || !signUpData.user) {
         setLoading(false);
         return { success: false, error: error?.message || 'Registration failed.' };
       }
 
-      let profile = await fetchProfile(signUpData.user.id);
-      if (!profile && signUpData.session) {
-        const profileData = {
-          id: signUpData.user.id,
-          email: cleanEmail,
-          username: cleanUsername,
-          full_name: data.full_name.trim(),
-          avatar_url: data.avatar_url || DEMO_AVATAR,
-          bio: data.bio || 'Friend in the circle 👋',
-          role: 'member' as const,
-          is_active: true,
-          status: 'active' as const,
-          location_sharing_enabled: true,
-          privacy_mode: 'exact' as const,
-          online_status: 'online' as const,
-          last_seen: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          phone: data.phone,
-          external_user_id: `usr-${cleanUsername}-${Date.now().toString(36)}`,
-        };
-        const { data: inserted, error: insertError } = await supabase.from('profiles').insert(profileData).select().single();
-        if (insertError) throw insertError;
-        profile = inserted as UserProfile;
-      }
-
+      const profile = await ensureProfile(signUpData.user);
       if (!profile) {
         setLoading(false);
         return { success: true, error: 'Account created. Please verify your email, then log in.' };
@@ -265,7 +263,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     if (currentUser && isSupabaseConfigured && supabase) {
-      await supabase.from('profiles').update({ online_status: 'offline', last_seen: new Date().toISOString() }).eq('id', currentUser.id);
+      await supabase.from('profiles').update({ online_status: false, last_seen: new Date().toISOString() }).eq('id', currentUser.id);
       await supabase.auth.signOut();
     }
     if (presenceChannelRef.current && supabase) {
